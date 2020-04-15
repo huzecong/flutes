@@ -2,3 +2,6 @@ recommonmark
 sphinx
 sphinx-rtd-theme>=0.2.4
 sphinxcontrib-spelling
+
+# Top-level imports
+termcolor

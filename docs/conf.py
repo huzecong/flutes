@@ -89,6 +89,8 @@ autodoc_typehints = 'none'
 spelling_lang = 'en_US'
 spelling_word_list_filename = 'spelling_wordlist.txt'
 
+master_doc = 'index'
+
 
 def setup(app):
     with open("_index") as f:
