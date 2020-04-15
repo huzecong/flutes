@@ -53,6 +53,9 @@ def split_by(iterable: Iterable[A], empty_segments: bool = False, *, criterion=N
         -> Iterator[List[A]]:
     r"""Split a list into sub-lists by dropping certain elements. Exactly one of ``criterion`` and ``separator`` must be
     specified. For example::
+
+    .. code-block:: python
+
         >>> list(split_by(range(10), criterion=lambda x: x % 3 == 0))
         [[1, 2], [4, 5], [7, 8]]
         >>> list(split_by(" Split by: ", empty_segments=True, separator='.'))
@@ -91,11 +94,15 @@ def scanl(func: Callable[[B, A], B], iterable: Iterable[A], initial: B) -> Itera
 
 
 def scanl(func, iterable, *args):
-    r"""Computes the intermediate results of :meth:`reduce`. Equivalent to Haskell's ``scanl``. For example::
+    r"""Computes the intermediate results of :meth:`reduce`. Equivalent to Haskell's ``scanl``. For example:
+
+    .. code:: python
+
         >>> list(scanl(operator.add, [1, 2, 3, 4], 0))
         [0, 1, 3, 6, 10]
         >>> list(scanl(lambda s, x: x + s, ['a', 'b', 'c', 'd']))
         ['a', 'ba', 'cba', 'dcba']
+
     Learn more at `Learn You a Haskell: Higher Order Functions <http://learnyouahaskell.com/higher-order-functions>`_.
 
     :param func: The function to apply. This should be a binary function where the arguments are: the accumulator,
@@ -127,11 +134,15 @@ def scanr(func: Callable[[B, A], B], iterable: Iterable[A], initial: B) -> List[
 
 def scanr(func, iterable, *args):
     r"""Computes the intermediate results of :meth:`reduce` applied in reverse. Equivalent to Haskell's ``scanr``.
-    For example::
+    For example:
+
+    .. code:: python
+
         >>> scanr(operator.add, [1, 2, 3, 4], 0)
         [10, 9, 7, 4, 0]
         >>> scanr(lambda s, x: x + s, ['a', 'b', 'c', 'd'])
         ['abcd', 'bcd', 'cd', 'd']
+
     Learn more at `Learn You a Haskell: Higher Order Functions <http://learnyouahaskell.com/higher-order-functions>`_.
 
     :param func: The function to apply. This should be a binary function where the arguments are: the accumulator,

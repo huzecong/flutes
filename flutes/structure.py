@@ -23,7 +23,7 @@ _NO_MAP_INSTANCE_ATTR = "--no-map--"
 
 
 def register_no_map_class(container_type: Type[T]) -> None:
-    r"""Register a container type as non-mappable, i.e. instances of the class will be treated as singleton objects in
+    r"""Register a container type as `non-mappable`, i.e. instances of the class will be treated as singleton objects in
     :meth:`map_structure` and :meth:`map_structure_zip`, their contents will not be traversed. This would be useful for
     certain types that subclass built-in container types, such as ``torch.Size``.
 
@@ -44,7 +44,7 @@ def _no_map_type(container_type: Type[T]) -> Type[T]:
 
 
 def no_map_instance(instance: T) -> T:
-    r"""Register a container instance as non-mappable, i.e. it will be treated as a singleton object in
+    r"""Register a container instance as `non-mappable`, i.e. it will be treated as a singleton object in
     :meth:`map_structure` and :meth:`map_structure_zip`, its contents will not be traversed.
 
     :param instance: The container instance.
@@ -85,6 +85,7 @@ def map_structure(fn: Callable[[T], R], obj: Collection[T]) -> Collection[R]:
 def map_structure_zip(fn: Callable[..., R], objs: Sequence[Collection[T]]) -> Collection[R]:
     r"""Map a function over tuples formed by taking one elements from each (possibly nested) collection. Each collection
     must have identical structures.
+
     .. note::
         Although identical structures are required, it is not enforced by assertions. The structure of the first
         collection is assumed to be the structure for all collections. For rare cases where collections need to have

@@ -74,7 +74,7 @@ def run_command(args: Union[str, List[str]], *,
     r"""A wrapper over ``subprocess.check_output`` that prevents deadlock caused by the combination of pipes and
     timeout. Output is redirected into a temporary file and returned only on exceptions or when return code is nonzero.
 
-    In case an OSError occurs, the function will retry for a maximum for 5 times with exponential backoff. If error
+    In case an OSError occurs, the function will retry for a maximum for 5 times with exponential back-off. If error
     still occurs, we just re-raise it.
 
     :param args: The command to run. Should be either a `str` or a list of `str` depending on whether ``shell`` is True.

@@ -1,3 +1,4 @@
+import logging
 import tempfile
 
 import flutes
@@ -12,6 +13,7 @@ def test_log():
         flutes.log("warning output", "warning")
         flutes.log("error output", "error")
         flutes.log("success output", "success")
+        logging.shutdown()
         with open(f_tmp.name, "r") as f:
             lines = [line for line in f]
         assert len(lines) == 2

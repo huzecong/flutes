@@ -19,18 +19,14 @@ __all__ = [
 
 if platform.system() == "Darwin":
     def get_folder_size(path: str) -> int:
-        r"""Get disk usage of given path in bytes.
-
-        Credit: https://stackoverflow.com/a/25574638/4909228
-        """
+        # Credit: https://stackoverflow.com/a/25574638/4909228
+        r"""Get disk usage of given path in bytes."""
         return int(subprocess.check_output(['du', '-s', path],
                                            env={"BLOCKSIZE": "512"}).split()[0].decode('utf-8')) * 512
 else:
     def get_folder_size(path: str) -> int:
-        r"""Get disk usage of given path in bytes.
-
-        Credit: https://stackoverflow.com/a/25574638/4909228
-        """
+        # Credit: https://stackoverflow.com/a/25574638/4909228
+        r"""Get disk usage of given path in bytes."""
         return int(subprocess.check_output(['du', '-bs', path]).split()[0].decode('utf-8'))
 
 

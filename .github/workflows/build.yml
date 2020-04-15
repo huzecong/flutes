@@ -38,9 +38,37 @@ jobs:
           yml: ./codecov.yml
           fail_ci_if_error: true
 
-  deploy:
+  docs:
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      matrix:
+        python-version: [3.7]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Instal dependencies
+        run: |
+          pip install --upgrade pip
+          pip install --progress-bar off -r requirements.txt
+          # Install library required for spellcheck
+          sudo apt-get install libenchant1c2a myspell-en-us
+          pip install --progress-bar off -r docs/requirements.txt
+      - name: Build docs
+        run: |
+          cd docs
+          # Build documents
+          sphinx-build -W -b html -d _build/doctrees . _build/html
+          # Check for typos
+          sphinx-build -W -b spelling -d _build/doctrees . _build/spelling
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docs
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
     strategy:
       matrix:
