@@ -1,8 +1,6 @@
 import contextlib
 import os
-from typing import TextIO, IO
-
-import tqdm
+from typing import IO, TextIO
 
 __all__ = [
     "shut_up",
@@ -48,13 +46,14 @@ class FileProgress:
         return super().__new__(cls)
 
     def __init__(self, f: TextIO, *, encoding: str = 'utf-8', **kwargs):
+        from tqdm import tqdm
         self.f = f
         self.encoding = encoding
         self.file_size = os.fstat(f.fileno()).st_size
         if "verbose" in kwargs:
             del kwargs["verbose"]
         kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}]")
-        self.progress_bar = tqdm.tqdm(total=self.file_size, **kwargs)
+        self.progress_bar = tqdm(total=self.file_size, **kwargs)
         self.size_read = 0
         self._next_tick = 1
         self._next_size = self.file_size // 100
@@ -181,5 +180,5 @@ def reverse_open(path: PathType, *, encoding: str = 'utf-8', allow_empty_lines: 
         raise ValueError(f"`buf_size` must be at least {_ReverseReadlineFile.MAX_CHAR_BYTES}")
     fp = open(path, "rb")
     gen = _ReverseReadlineFile.generator(fp, encoding=encoding, allow_empty_lines=allow_empty_lines,
-                                             buf_size=buf_size)
+                                         buf_size=buf_size)
     return _ReverseReadlineFile(fp, gen)

@@ -5,9 +5,7 @@ import threading
 import traceback
 import types
 from collections import defaultdict
-from typing import Any, Callable, Dict, IO, Iterable, Iterator, List, NamedTuple, Optional, TextIO, TypeVar, Union
-
-import psutil
+from typing import Any, Callable, Dict, IO, Iterable, Iterator, List, NamedTuple, Optional, TypeVar, Union
 
 __all__ = [
     "get_worker_id",
@@ -141,6 +139,7 @@ class MultiprocessingFileWriter(IO[Any]):
 
 def kill_proc_tree(pid: int, including_parent: bool = True) -> None:
     r"""Kill entire process tree."""
+    import psutil
     parent = psutil.Process(pid)
     children = parent.children(recursive=True)
     for child in children:

@@ -3,6 +3,9 @@ import setuptools
 with open("README.md", "r") as f:
     long_description = f.read()
 
+with open("requirements.txt", "r") as f:
+    requirements = f.read().strip().split("\n")
+
 setuptools.setup(
     name="flutes",
     version="0.1",
@@ -25,7 +28,7 @@ setuptools.setup(
     },
     platforms='any',
 
-    install_requires=[],
+    install_requires=requirements,
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

@@ -1,0 +1,4 @@
+ipython
+psutil
+termcolor>=1.0
+tqdm>=4.0
