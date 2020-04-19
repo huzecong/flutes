@@ -2,9 +2,10 @@ import contextlib
 import io
 import os
 import sys
-from typing import IO, Optional, Dict, Any
+from typing import Any, Dict, IO, Optional, overload
 
 from tqdm import tqdm
+from typing_extensions import Literal
 
 from .types import PathType
 
@@ -46,7 +47,7 @@ def shut_up(stderr: bool = True, stdout: bool = False):
 
 
 class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
-    def __init__(self, raw: IO[bytes], buffer_size: int = io.DEFAULT_BUFFER_SIZE, *, bar_kwargs: Dict[str, Any]):
+    def __init__(self, raw: io.RawIOBase, buffer_size: int = io.DEFAULT_BUFFER_SIZE, *, bar_kwargs: Dict[str, Any]):
         super().__init__(raw, buffer_size)
         file_size = os.fstat(raw.fileno()).st_size
         self.progress_bar = tqdm(total=file_size, **bar_kwargs)
@@ -63,7 +64,7 @@ class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
     def close(self) -> None:
         self.progress_bar.close()
 
-    def read(self, size: int = -1) -> bytes:
+    def read(self, size: Optional[int] = -1) -> bytes:
         ret = super().read(size)
         self.progress_bar.update(len(ret))
         return ret
@@ -71,11 +72,6 @@ class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
     def read1(self, size: int = -1) -> bytes:
         ret = super().read1(size)
         self.progress_bar.update(len(ret))
-        return ret
-
-    def readinto(self, b: bytearray) -> int:
-        ret = super().readinto(b)
-        self.progress_bar.update(ret)
         return ret
 
     def readline(self, size: int = -1) -> bytes:
@@ -90,7 +86,7 @@ class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
         return ret
 
 
-class progress_open(IO[str]):
+class progress_open:
     r"""A replacement for ``open`` that shows the progress of reading the file:
 
     .. code:: python
@@ -111,8 +107,17 @@ class progress_open(IO[str]):
     """
     progress_bar: tqdm
 
-    def __new__(cls, path: PathType, mode: str = "r", *, encoding: str = 'utf-8', verbose: bool = True,
-                buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs):
+    @overload
+    def __new__(cls, path: PathType, mode: Literal['r'] = 'r', *, encoding: str = "utf-8",  # type: ignore
+                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[str]:
+        ...
+
+    @overload
+    def __new__(cls, path: PathType, mode: Literal['rb'], *, encoding: str = "utf-8",  # type: ignore
+                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[bytes]:
+        ...
+
+    def __new__(cls, path, mode="r", *, encoding='utf-8', verbose=True, buffer_size=io.DEFAULT_BUFFER_SIZE, **kwargs):
         if not verbose:
             return open(path, mode)
 
@@ -120,7 +125,7 @@ class progress_open(IO[str]):
             raise ValueError(f"Unsupported mode '{mode}'. Only read modes ('r', 'rb') are supported")
 
         kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}]")
-        buffer = f = _ProgressBufferedReader(io.FileIO(path, mode="r"), buffer_size, bar_kwargs=kwargs)
+        buffer = f = _ProgressBufferedReader(io.FileIO(str(path), mode="r"), buffer_size, bar_kwargs=kwargs)
         if mode == "r":
             f = io.TextIOWrapper(f, encoding=encoding)
             f.progress_bar = buffer.progress_bar

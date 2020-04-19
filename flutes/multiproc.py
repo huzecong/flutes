@@ -222,10 +222,11 @@ class ProgressBarManager:
             self.queue.put_nowait(UpdateEvent(get_worker_id(), n, postfix))
 
         def iter(self, iterable: Iterable[T], **kwargs) -> Iterator[T]:
+            length = None
             try:
-                length = len(iterable)
-            except:
-                length = None
+                length = len(iterable)  # type: ignore
+            except TypeError:
+                pass
             self.new(total=length, **kwargs)
             for x in iterable:
                 yield x

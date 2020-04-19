@@ -14,7 +14,7 @@ def test_reverse_open():
         with open(f_temp.name) as f:
             gold_lines = [line for line in f]
         assert flutes.get_file_lines(f_temp.name) == len(gold_lines)
-        with flutes.reverse_open(f_temp.name, buf_size=10) as f:
+        with flutes.reverse_open(f_temp.name, buffer_size=10) as f:
             lines = [line for line in f]
         lines = list(reversed(lines))
     assert len(gold_lines) == len(lines)
@@ -52,14 +52,5 @@ def test_progress_open():
             f.seek(5000)
             f.read()
 
-        @_test(modes=["rb"])
-        def test_readinto(f):
-            b = bytearray(10000)
-            f.seek(5000)
-            f.readinto(b)
-            content = f.read()
-            assert f.progress_bar.total == 5000 + len(b) + len(content)
-
         test_iter_line()
         test_seek()
-        test_readinto()
