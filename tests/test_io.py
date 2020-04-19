@@ -7,7 +7,7 @@ URL = "https://www.ltg.ed.ac.uk/~richard/unicode-sample-3-2.html"
 DATA = urlopen(URL).read()
 
 
-def test_reverse_open():
+def test_reverse_open() -> None:
     with tempfile.NamedTemporaryFile("wb") as f_temp:
         f_temp.write(DATA)
         f_temp.flush()
@@ -24,7 +24,7 @@ def test_reverse_open():
 
 
 @flutes.shut_up(stderr=True)
-def test_progress_open():
+def test_progress_open() -> None:
     def _test(modes=None):
         def decorator(func):
             def wrapped():

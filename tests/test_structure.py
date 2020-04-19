@@ -5,14 +5,14 @@ from typing import NamedTuple
 import flutes
 
 
-def test_reverse_map():
+def test_reverse_map() -> None:
     seq = list(range(100))
     random.shuffle(seq)
     d = {x: i for i, x in enumerate(seq)}
     assert flutes.reverse_map(d) == seq
 
 
-def test_map_structure():
+def test_map_structure() -> None:
     class Example(NamedTuple):
         a: int
         b: float

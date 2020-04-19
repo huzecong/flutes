@@ -1,7 +1,7 @@
 import flutes
 
 
-def test_exception_wrapper():
+def test_exception_wrapper() -> None:
     def handler_fn(e, three, one, args, my_arg=None, **kw):
         assert isinstance(e, ValueError)
         assert str(e) == "test"
@@ -19,7 +19,7 @@ def test_exception_wrapper():
     foo(1, "2", "arg1", "arg2", four=4)
 
     @flutes.exception_wrapper()
-    def foo():
+    def foo2():
         raise ValueError("test2")
 
-    foo()
+    foo2()

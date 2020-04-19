@@ -4,20 +4,20 @@ import tempfile
 import flutes
 
 
-def test_readable_size():
+def test_readable_size() -> None:
     assert flutes.readable_size(500.12345) == "500.12"
     assert flutes.readable_size(2048) == "2.00K"
     assert flutes.readable_size(34.567 * 1024 ** 5) == "34.57P"
 
 
-def test_remove_prefix():
+def test_remove_prefix() -> None:
     assert flutes.remove_prefix("some string", "some ") == "string"
     assert flutes.remove_prefix("some string", "something") == " string"
     assert flutes.remove_prefix("some string", "not matching") == "some string"
     assert flutes.remove_prefix("some string", "some string longer") == ""
 
 
-def test_cache():
+def test_cache() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         path = os.path.join(temp_dir, "cache.pkl")
 

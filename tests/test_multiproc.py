@@ -10,7 +10,7 @@ def sqr(x: int) -> int:
     return x * x
 
 
-def test_safe_pool():
+def test_safe_pool() -> None:
     seq = list(range(10000))
     target = list(map(sqr, seq))  # sequential
     with mp.Pool(1) as pool:
@@ -31,7 +31,7 @@ def test_safe_pool():
     file_obj.close.assert_called_once()
 
 
-def progress_bar_fn(idx: int, bar):
+def progress_bar_fn(idx: int, bar) -> None:
     total = (idx + 1) * 2
     bar.new(desc=f"Bar {idx}", total=total)
     for i in range(total):
@@ -42,7 +42,7 @@ def progress_bar_fn(idx: int, bar):
         bar.update(postfix={"i": i})
 
 
-def test_ProgressBarManager():
+def test_ProgressBarManager() -> None:
     for proc in [0, 2]:
         # Test multiprocessing in `proc = 2`
         # Test coverage in `proc = 0`

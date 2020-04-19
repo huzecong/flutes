@@ -5,7 +5,7 @@ import pytest
 import flutes
 
 
-def test_run_command():
+def test_run_command() -> None:
     with open(__file__, "rb") as f:
         code = f.read()
     result = flutes.run_command(["cat", __file__], verbose=True, return_output=True)

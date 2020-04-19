@@ -1,10 +1,9 @@
-import logging
 import tempfile
 
 import flutes
 
 
-def test_log():
+def test_log() -> None:
     with tempfile.NamedTemporaryFile("w") as f_tmp:
         flutes.set_log_file(f_tmp.name)
         flutes.set_log_file(f_tmp.name)
