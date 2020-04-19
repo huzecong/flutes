@@ -174,7 +174,41 @@ Event = Union[NewEvent, UpdateEvent, WriteEvent, QuitEvent]
 
 
 class ProgressBarManager:
-    r"""A manager for ``tqdm`` progress bars that allows maintaining multiple bars from multiple worker processes."""
+    r"""A manager for ``tqdm`` progress bars that allows maintaining multiple bars from multiple worker processes.
+
+    .. code:: python
+
+        def run(xs: List[int], *, bar) -> int:
+            bar.new(total=len(xs), desc="Worker {flutes.get_worker_id()}")  # create a new progress bar
+            # Compute-intensive stuff!
+            result = 0
+            for idx, x in enumerate(xs):
+                result += x
+                time.sleep(random.uniform(0.01, 0.2))
+                bar.update(1, postfix={"sum": result})  # update progress
+                if (idx + 1) % 100 == 0:
+                    # Logging works without messing up terminal output.
+                    flutes.log(f"Processed {idx + 1} samples")
+            return result
+
+        def run2(xs: List[int], *, bar) -> int:
+            # An alternative way to achieve the same functionalities (though slightly slower):
+            result = 0
+            for idx, x in enumerate(bar.iter(xs)):
+                result += x
+                time.sleep(random.uniform(0.01, 0.2))
+                bar.update(postfix={"sum": result})  # update progress
+                if (idx + 1) % 100 == 0:
+                    # Logging works without messing up terminal output.
+                    flutes.log(f"Processed {idx + 1} samples")
+            return result
+
+        manager = flutes.ProgressBarManager()
+        run_fn = functools.partial(run, bar=manager.proxy)
+        with flutes.safe_pool(4) as pool:
+            for idx, _ in enumerate(pool.imap_unordered(run_fn, data)):
+                flutes.log(f"Processed {idx + 1} arrays")
+    """
 
     class Proxy:
         def __init__(self, queue: 'mp.Queue[Event]'):
@@ -184,8 +218,18 @@ class ProgressBarManager:
             r"""Construct a new progress bar."""
             self.queue.put_nowait(NewEvent(get_worker_id(), kwargs))
 
-        def update(self, n: int, postfix: Optional[Dict[str, Any]] = None) -> None:
+        def update(self, n: int = 0, *, postfix: Optional[Dict[str, Any]] = None) -> None:
             self.queue.put_nowait(UpdateEvent(get_worker_id(), n, postfix))
+
+        def iter(self, iterable: Iterable[T], **kwargs) -> Iterator[T]:
+            try:
+                length = len(iterable)
+            except:
+                length = None
+            self.new(total=length, **kwargs)
+            for x in iterable:
+                yield x
+                self.update(1)
 
         def write(self, message: str) -> None:
             self.queue.put_nowait(WriteEvent(get_worker_id(), message))

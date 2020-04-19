@@ -37,7 +37,9 @@ def progress_bar_fn(idx: int, bar):
     for i in range(total):
         bar.update(1, postfix={"i": i})
         if i % 5 == 1:
-            bar.write(f"test {i}")
+            flutes.log(f"test {i}")
+    for i in bar.iter(range(total)):
+        bar.update(postfix={"i": i})
 
 
 def test_ProgressBarManager():
