@@ -120,6 +120,7 @@ _CONSOLE_LOGGING_LEVEL = manager.Value('i', LEVEL_MAP["info"])
 
 
 def get_logging_levels() -> List[str]:
+    r"""Return a list of logging levels that the logging system supports."""
     return list(LEVEL_MAP.keys())
 
 

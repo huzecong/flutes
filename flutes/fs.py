@@ -35,12 +35,12 @@ def readable_size(size: float) -> str:
 
     :param size: File size in bytes.
     """
-    units = ["", "K", "M", "G", "T"]
-    for unit in units:
+    units = ["", "K", "M", "G", "T", "P"]
+    for unit in units[:-1]:
         if size < 1024:
             return f"{size:.2f}{unit}"
         size /= 1024
-    return f"{size:.2f}P"  # this won't happen
+    return f"{size:.2f}{units[-1]}"
 
 
 def get_file_lines(path: str) -> int:

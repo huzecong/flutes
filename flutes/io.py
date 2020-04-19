@@ -29,11 +29,11 @@ def shut_up(stderr: bool = True, stdout: bool = False):
         with shut_up(stderr=True):
             ... # verbose stuff
 
-    :param stderr: If ``True``, suppress output from ``stderr``.
-    :param stdout: If ``True``, suppress output from ``stdout``.
+    :param stderr: If ``True``, suppress output from ``stderr``. Defaults to ``True``.
+    :param stdout: If ``True``, suppress output from ``stdout``. Defaults to ``False``.
     """
     # redirect output to /dev/null
-    fds = ([1] if stdout else []) + ([2] if stderr else [])
+    fds = ([sys.stdout.fileno()] if stdout else []) + ([sys.stderr.fileno()] if stderr else [])
     null_fds = [os.open(os.devnull, os.O_RDWR) for _ in fds]
     output_fds = [os.dup(fd) for fd in fds]
     for null_fd, fd in zip(null_fds, fds):

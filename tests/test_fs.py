@@ -7,7 +7,7 @@ import flutes
 def test_readable_size():
     assert flutes.readable_size(500.12345) == "500.12"
     assert flutes.readable_size(2048) == "2.00K"
-    assert flutes.readable_size(34.567 * 1024 ** 4) == "34.57T"
+    assert flutes.readable_size(34.567 * 1024 ** 5) == "34.57P"
 
 
 def test_remove_prefix():

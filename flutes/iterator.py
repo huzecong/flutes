@@ -17,6 +17,12 @@ R = TypeVar('R')
 
 
 def chunk(iterable: Iterable[T], n: int) -> Iterator[List[T]]:
+    r"""Split the iterable into chunks, with each chunk containing no more than ``n`` elements.
+
+    :param iterable: The iterable.
+    :param n: The maximum number of elements in one chunk.
+    :return: An iterator over chunks.
+    """
     if n <= 0:
         raise ValueError("`n` should be positive")
     group = []
@@ -30,6 +36,12 @@ def chunk(iterable: Iterable[T], n: int) -> Iterator[List[T]]:
 
 
 def drop_until(pred_fn: Callable[[T], bool], iterable: Iterable[T]) -> Iterator[T]:
+    r"""Drop elements from the iterable until an element that satisfies the predicate is encountered.
+
+    :param pred_fn: The predicate that returned elements should satisfy.
+    :param iterable: The iterable.
+    :return: The iterator after dropping elements.
+    """
     iterator = iter(iterable)
     for item in iterator:
         if not pred_fn(item):
@@ -155,6 +167,12 @@ def scanr(func, iterable, *args):
 
 
 class LazyList(Generic[T]):
+    r"""A wrapper over an iterable to allow lazily converting it into a list. The iterable is only iterated up to the
+    accessed indices.
+
+    :param iterable: The iterable to wrap.
+    """
+
     class LazyListIterator:
         def __init__(self, lst: 'LazyList[T]'):
             self.list = weakref.ref(lst)
@@ -171,8 +189,8 @@ class LazyList(Generic[T]):
             self.index += 1
             return obj
 
-    def __init__(self, iterator: Iterable[T]):
-        self.iter = iter(iterator)
+    def __init__(self, iterable: Iterable[T]):
+        self.iter = iter(iterable)
         self.exhausted = False
         self.list: List[T] = []
 
