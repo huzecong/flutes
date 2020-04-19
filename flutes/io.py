@@ -1,14 +1,18 @@
 import contextlib
+import io
 import os
-from typing import IO, TextIO
+import sys
+from typing import IO, Optional, Dict, Any
+
+from tqdm import tqdm
+
+from .types import PathType
 
 __all__ = [
     "shut_up",
-    "FileProgress",
+    "progress_open",
     "reverse_open",
 ]
-
-from .types import PathType
 
 
 @contextlib.contextmanager
@@ -41,57 +45,86 @@ def shut_up(stderr: bool = True, stdout: bool = False):
         os.close(null_fd)
 
 
-class FileProgress:
-    def __new__(cls, f: TextIO, *, verbose: bool = True, **kwargs):
-        if not verbose:
-            return f
-        return super().__new__(cls)
-
-    def __init__(self, f: TextIO, *, encoding: str = 'utf-8', **kwargs):
-        from tqdm import tqdm
-        self.f = f
-        self.encoding = encoding
-        self.file_size = os.fstat(f.fileno()).st_size
-        if "verbose" in kwargs:
-            del kwargs["verbose"]
-        kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}]")
-        self.progress_bar = tqdm(total=self.file_size, **kwargs)
-        self.size_read = 0
-        self._next_tick = 1
-        self._next_size = self.file_size // 100
-        self._accum_size = 0
-
-    def __iter__(self):
-        return self
-
-    def _update(self, line: str):
-        size = len(line)  # `line.decode(self.encoding)` would be more precise, but who cares?
-        self._accum_size += size
-        if self.size_read + self._accum_size >= self._next_size:  # do a bulk update
-            self.progress_bar.update(self._accum_size)
-            self.size_read += self._accum_size
-            self._accum_size = 0
-            while self.size_read >= self._next_size:
-                self._next_tick += 1
-                self._next_size = self.file_size * self._next_tick // 100
-
-    def __next__(self) -> str:
-        line = next(self.f)
-        self._update(line)
-        return line
-
-    def readline(self, *args) -> str:
-        line = self.f.readline(*args)
-        self._update(line)
-        return line
+class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
+    def __init__(self, raw: IO[bytes], buffer_size: int = io.DEFAULT_BUFFER_SIZE, *, bar_kwargs: Dict[str, Any]):
+        super().__init__(raw, buffer_size)
+        file_size = os.fstat(raw.fileno()).st_size
+        self.progress_bar = tqdm(total=file_size, **bar_kwargs)
 
     def __enter__(self):
-        self.f.__enter__()
-        return self
+        self.progress_bar.__enter__()
+        return super().__enter__()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if super().__exit__(exc_type, exc_val, exc_tb):
+            return True
+        return self.progress_bar.__exit__(exc_type, exc_val, exc_tb)
+
+    def close(self) -> None:
         self.progress_bar.close()
-        self.f.__exit__(exc_type, exc_val, exc_tb)
+
+    def read(self, size: int = -1) -> bytes:
+        ret = super().read(size)
+        self.progress_bar.update(len(ret))
+        return ret
+
+    def read1(self, size: int = -1) -> bytes:
+        ret = super().read1(size)
+        self.progress_bar.update(len(ret))
+        return ret
+
+    def readinto(self, b: bytearray) -> int:
+        ret = super().readinto(b)
+        self.progress_bar.update(ret)
+        return ret
+
+    def readline(self, size: int = -1) -> bytes:
+        ret = super().readline(size)
+        self.progress_bar.update(len(ret))
+        return ret
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        ret = super().seek(offset, whence)
+        self.progress_bar.n = ret
+        self.progress_bar.refresh()
+        return ret
+
+
+class progress_open(IO[str]):
+    r"""A replacement for ``open`` that shows the progress of reading the file:
+
+    .. code:: python
+
+        with progress_open(path, mode="r") as f:
+            # `f` is just what you'd get with `open(path)`, now with a progress bar
+            bar = f.progress_bar  # type: tqdm.tqdm
+
+    :param path: Path to the file.
+    :param mode: The file open mode. When progress bar is enabled, only read modes ``"r"`` and ``"rb"`` are supported
+        (write progress doesn't make a lot of sense). Defaults to ``"r"``.
+    :param encoding: Encoding for the file. Only required for ``"r"`` mode. Defaults to ``"utf-8"``.
+    :param verbose: If ``False``, the progress bar is not displayed and a normal file object is returned. Defaults to
+        ``True``.
+    :param buffer_size: The size of the file buffer. Defaults to ``io.DEFAULT_BUFFER_SIZE``.
+    :param kwargs: Additional arguments to pass to ``tqdm`` initializer.
+    :return: A file object.
+    """
+    progress_bar: tqdm
+
+    def __new__(cls, path: PathType, mode: str = "r", *, encoding: str = 'utf-8', verbose: bool = True,
+                buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs):
+        if not verbose:
+            return open(path, mode)
+
+        if mode not in ["r", "rb"]:
+            raise ValueError(f"Unsupported mode '{mode}'. Only read modes ('r', 'rb') are supported")
+
+        kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}]")
+        buffer = f = _ProgressBufferedReader(io.FileIO(path, mode="r"), buffer_size, bar_kwargs=kwargs)
+        if mode == "r":
+            f = io.TextIOWrapper(f, encoding=encoding)
+            f.progress_bar = buffer.progress_bar
+        return f
 
 
 class _ReverseReadlineFile:
@@ -168,19 +201,21 @@ class _ReverseReadlineFile:
         self.fp.close()
 
 
-def reverse_open(path: PathType, *, encoding: str = 'utf-8', allow_empty_lines: bool = False, buf_size: int = 8192):
+def reverse_open(path: PathType, *, encoding: str = 'utf-8', allow_empty_lines: bool = False,
+                 buffer_size: int = io.DEFAULT_BUFFER_SIZE):
     # Credits: https://stackoverflow.com/questions/2301789/read-a-file-in-reverse-order-using-python
     r"""A generator that returns the lines of a file in reverse order. Usage and syntax is the same as built-in
     method ``open``.
 
     :param path: Path to file.
-    :param encoding: Encoding of file.
-    :param allow_empty_lines: If ``False``, empty lines are skipped.
-    :param buf_size: Buffer size. Most of the times you won't need to change this.
+    :param encoding: Encoding of file. Defaults to ``"utf-8"``.
+    :param allow_empty_lines: If ``False``, empty lines are skipped. Defaults to ``False``.
+    :param buffer_size: Buffer size. You probably won't need to change this for most cases. Defaults to
+        ``io.DEFAULT_BUFFER_SIZE``.
     """
-    if buf_size < _ReverseReadlineFile.MAX_CHAR_BYTES:
+    if buffer_size < _ReverseReadlineFile.MAX_CHAR_BYTES:
         raise ValueError(f"`buf_size` must be at least {_ReverseReadlineFile.MAX_CHAR_BYTES}")
     fp = open(path, "rb")
     gen = _ReverseReadlineFile.generator(fp, encoding=encoding, allow_empty_lines=allow_empty_lines,
-                                         buf_size=buf_size)
+                                         buf_size=buffer_size)
     return _ReverseReadlineFile(fp, gen)
