@@ -1,5 +1,7 @@
 import functools
 import multiprocessing as mp
+import operator
+from typing import Dict, List
 from unittest.mock import NonCallableMagicMock, MagicMock
 
 import flutes
@@ -18,17 +20,52 @@ def test_safe_pool() -> None:
 
     file_obj = MagicMock()
     with flutes.safe_pool(0, closing=[file_obj]) as pool:
-        assert not isinstance(pool, pool_type)
+        assert type(pool) is not pool_type
         check_iterator(pool.imap(sqr, seq), target)
     file_obj.assert_called_once()
 
     file_obj = NonCallableMagicMock()
     file_obj.mock_add_spec(["close"])
     with flutes.safe_pool(2, closing=[file_obj]) as pool:
-        assert isinstance(pool, pool_type)
+        assert type(pool) is pool_type
         check_iterator(pool.imap(sqr, seq), target)
         raise ValueError  # should swallow exceptions
     file_obj.close.assert_called_once()
+
+
+class PoolState(flutes.PoolState):
+    def __init__(self, large_dict: Dict[str, int]):
+        self.large_dict = large_dict
+
+    def convert(self, x: str) -> int:
+        return self.large_dict[x]
+
+
+def test_stateful_pool() -> None:
+    large_dict = {str(i): i for i in range(100000)}
+    seq = list(map(str, range(100000)))
+    target = sum(map(int, seq))  # sequential
+
+    for n_procs in [0, 2]:
+        with flutes.safe_pool(n_procs, state_class=PoolState, init_args=(large_dict,)) as pool:
+            result = sum(pool.imap_unordered(PoolState.convert, seq, chunksize=1000))
+        assert result == target
+
+
+def test_pool_methods() -> None:
+    seq = list(range(10000))
+    target = list(map(sqr, seq))  # sequential
+    for n_procs in [0, 2]:
+        for state_class in [PoolState, None]:
+            with flutes.safe_pool(n_procs, state_class=state_class, init_args=(None,)) as pool:
+                check_iterator(pool.map(sqr, seq), target)
+                check_iterator(pool.imap(sqr, seq), target)
+                check_iterator(sorted(pool.imap_unordered(sqr, seq)), target)
+                check_iterator(pool.starmap(operator.mul, zip(seq, seq)), target)
+                check_iterator(pool.map_async(sqr, seq).get(), target)
+                check_iterator(pool.starmap_async(operator.mul, zip(seq, seq)).get(), target)
+                assert pool.apply(sqr, (10,)) == 100
+                assert pool.apply_async(sqr, (10,)).get() == 100
 
 
 def progress_bar_fn(idx: int, bar) -> None:
