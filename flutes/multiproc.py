@@ -10,7 +10,7 @@ from collections import defaultdict
 from multiprocessing.pool import Pool
 from types import FrameType
 from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type,
-                    TypeVar, Union, cast, overload)
+                    TypeVar, Union, cast, no_type_check, overload)
 
 from typing_extensions import Literal
 
@@ -269,10 +269,11 @@ class StatefulPoolWrapper(Generic[State]):
             wrapped_method = self._define_method(pool_method)
             setattr(self, name, wrapped_method)
 
+    @no_type_check
     def _wrap_fn(self, func: Callable[[State, T], R]) -> Callable[[T], R]:
         # If the function is a `PoolState` method, wrap it to allow access to `self`.
         if id(func) in self._class_methods:
-            return functools.partial(_pool_fn_with_state, func)  # type: ignore[return-value]
+            return functools.partial(_pool_fn_with_state, func)
         if inspect.ismethod(func):
             if func.__self__.__class__ is self._state_class:
                 raise ValueError(f"Bound methods of the pool state class {self._state_class.__name__} are not "
@@ -294,20 +295,21 @@ class StatefulPoolWrapper(Generic[State]):
     @staticmethod
     def _return_state(self, received_ids: Set[int]) -> Optional[Tuple[State, int]]:
         worker_id = get_worker_id()
+        assert worker_id is not None
         if worker_id in received_ids:
             return None
         return (self, worker_id)
 
     def get_states(self) -> List[State]:
-        if self._pool._state == mp.pool.TERMINATE:
+        if self._pool._state == mp.pool.TERMINATE:  # type: ignore[union-attr]
             raise ValueError("Pool is already terminated")
         if isinstance(self._pool, DummyPool):
-            return [self._pool._process_state]
+            return [self._pool._process_state]  # type: ignore[list-item]
         assert isinstance(self._pool, Pool)
-        received_ids = set()
+        received_ids: Set[int] = set()
         states = []
-        while len(received_ids) < self._pool._processes:
-            result = self.apply(self._return_state, (received_ids,))
+        while len(received_ids) < self._pool._processes:  # type: ignore[attr-defined]
+            result = self.apply(self._return_state, (received_ids,))  # type: ignore[attr-defined]
             if result is not None:
                 state, worker_id = result
                 received_ids.add(worker_id)

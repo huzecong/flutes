@@ -54,10 +54,6 @@ def error_wrapper(err: ExcType) -> ExcType:
 MAX_OUTPUT_LENGTH = 8192
 
 
-# @tenacity.retry(retry=tenacity.retry_if_exception_type(OSError), reraise=True,
-#                 stop=tenacity.stop_after_attempt(6),  # retry 5 times
-#                 wait=tenacity.wait_random_exponential(multiplier=2, max=60),
-#                 before_sleep=_run_command_retry_logger)
 def run_command(args: Union[str, List[str]], *,
                 env: Optional[Dict[str, str]] = None, cwd: Optional[PathType] = None, timeout: Optional[float] = None,
                 verbose: bool = False, return_output: bool = False, ignore_errors: bool = False,
@@ -79,12 +75,14 @@ def run_command(args: Union[str, List[str]], *,
         ``subprocess.TimeoutExpired`` error.
     :return: An instance of :class:`CommandResult`.
     """
+    if cwd is not None:
+        cwd = str(cwd)
     if verbose:
         print(str(cwd or "") + "> " + repr(args))
     with tempfile.TemporaryFile() as f:
         try:
             ret = subprocess.run(args, check=True, stdout=f, stderr=subprocess.STDOUT,
-                                 timeout=timeout, env=env, cwd=str(cwd), **kwargs)
+                                 timeout=timeout, env=env, cwd=cwd, **kwargs)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             f.seek(0)
             output = f.read()

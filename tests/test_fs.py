@@ -7,11 +7,11 @@ import flutes
 
 def test_copy_tree() -> None:
     with tempfile.TemporaryDirectory() as tempdir:
-        tempdir = Path(tempdir)
-        result = flutes.run_command(["git", "clone", "https://github.com/huzecong/flutes"], cwd=tempdir)
+        path = Path(tempdir)
+        result = flutes.run_command(["git", "clone", "https://github.com/huzecong/flutes"], cwd=path)
         assert result.return_code == 0
-        flutes.copy_tree(tempdir / "flutes", tempdir / "flutes_copy")
-        assert flutes.get_folder_size(tempdir / "flutes") == flutes.get_folder_size(tempdir / "flutes_copy")
+        flutes.copy_tree(path / "flutes", path / "flutes_copy")
+        assert flutes.get_folder_size(path / "flutes") == flutes.get_folder_size(path / "flutes_copy")
 
 
 def test_readable_size() -> None:

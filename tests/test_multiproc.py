@@ -2,7 +2,7 @@ import functools
 import multiprocessing as mp
 import operator
 from typing import Dict, List
-from unittest.mock import NonCallableMagicMock, MagicMock
+from unittest.mock import MagicMock, NonCallableMagicMock
 
 import pytest
 
@@ -51,10 +51,12 @@ def test_stateful_pool() -> None:
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs, state_class=PoolState, init_args=(large_dict,)) as pool:
             result = sum(pool.imap_unordered(PoolState.convert, seq, chunksize=1000))
+
+            # See, if you had a type checker, you wouldn't be making these mistakes.
             with pytest.raises(ValueError, match="Bound methods of the pool state class"):
-                _ = sum(pool.imap_unordered(PoolState({}).convert, seq, chunksize=1000))
+                _ = sum(pool.imap_unordered(PoolState({}).convert, seq, chunksize=1000))  # type: ignore[arg-type]
             with pytest.raises(ValueError, match="Only unbound methods of the pool state class"):
-                _ = sum(pool.imap_unordered(PoolState2.generate, seq, chunksize=1000))
+                _ = sum(pool.imap_unordered(PoolState2.generate, seq, chunksize=1000))  # type: ignore[arg-type]
         assert result == target
 
 
