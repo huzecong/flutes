@@ -7,9 +7,9 @@ from typing import Dict, List, NamedTuple, Optional, TypeVar, Union
 # from .log import log
 
 __all__ = [
+    "run_command",
     "CommandResult",
     "error_wrapper",
-    "run_command",
 ]
 
 
@@ -57,7 +57,7 @@ def error_wrapper(err: ExcType) -> ExcType:
     new_type = type(err_type.__name__, (err_type,), {"__str__": __str__})
 
     err.__class__ = new_type
-    return err  # type: ignore
+    return err  # type: ignore[return-value]
 
 
 MAX_OUTPUT_LENGTH = 8192

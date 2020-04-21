@@ -21,7 +21,7 @@ jobs:
           pip install -r requirements.txt
       - name: Typecheck
         run: |
-          pip install mypy==0.761
+          pip install mypy==0.770
           mypy .
       - name: Unit test
         run: |

@@ -492,7 +492,7 @@ class ProgressBarManager:
         def iter(self, iterable: Iterable[T], **kwargs) -> Iterator[T]:
             length = None
             try:
-                length = len(iterable)  # type: ignore
+                length = len(iterable)  # type: ignore[arg-type]
             except TypeError:
                 pass
             self.new(total=length, **kwargs)

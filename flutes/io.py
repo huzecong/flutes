@@ -108,12 +108,12 @@ class progress_open:
     progress_bar: tqdm
 
     @overload
-    def __new__(cls, path: PathType, mode: Literal['r'] = 'r', *, encoding: str = "utf-8",  # type: ignore
+    def __new__(cls, path: PathType, mode: Literal['r'] = 'r', *, encoding: str = "utf-8",  # type: ignore[misc]
                 verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[str]:
         ...
 
     @overload
-    def __new__(cls, path: PathType, mode: Literal['rb'], *, encoding: str = "utf-8",  # type: ignore
+    def __new__(cls, path: PathType, mode: Literal['rb'], *, encoding: str = "utf-8",  # type: ignore[misc]
                 verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[bytes]:
         ...
 

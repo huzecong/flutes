@@ -43,6 +43,7 @@ def _no_map_type(container_type: Type[T]) -> Type[T]:
     return new_type
 
 
+@no_type_check
 def no_map_instance(instance: T) -> T:
     r"""Register a container instance as `non-mappable`, i.e. it will be treated as a singleton object in
     :meth:`map_structure` and :meth:`map_structure_zip`, its contents will not be traversed.
@@ -53,7 +54,7 @@ def no_map_instance(instance: T) -> T:
         setattr(instance, _NO_MAP_INSTANCE_ATTR, True)
         return instance
     except AttributeError:
-        return _no_map_type(type(instance))(instance)  # type: ignore
+        return _no_map_type(type(instance))(instance)
 
 
 @no_type_check

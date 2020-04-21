@@ -1,5 +1,5 @@
 import weakref
-from typing import Callable, Generic, Iterable, Iterator, List, Optional, TypeVar, overload
+from typing import Callable, Generic, Iterable, Iterator, List, Optional, Sequence, TypeVar, overload
 
 __all__ = [
     "chunk",
@@ -96,7 +96,6 @@ def split_by(iterable: Iterable[A], empty_segments: bool = False, *, criterion=N
         yield group
 
 
-# This is what happens when you don't have the Haskell `scanl`
 @overload
 def scanl(func: Callable[[A, A], A], iterable: Iterable[A]) -> Iterator[A]: ...
 
@@ -166,7 +165,7 @@ def scanr(func, iterable, *args):
     return list(scanl(func, reversed(iterable), *args))[::-1]
 
 
-class LazyList(Generic[T]):
+class LazyList(Generic[T], Sequence[T]):
     r"""A wrapper over an iterable to allow lazily converting it into a list. The iterable is only iterated up to the
     accessed indices.
 
@@ -203,6 +202,8 @@ class LazyList(Generic[T]):
         if self.exhausted:
             return
         try:
+            if idx is not None and idx < 0:
+                idx = None  # otherwise we won't know when the sequence ends
             while idx is None or len(self.list) <= idx:
                 self.list.append(next(self.iter))
         except StopIteration:
