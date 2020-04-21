@@ -78,7 +78,7 @@ def run_command(args: Union[str, List[str]], *,
     if cwd is not None:
         cwd = str(cwd)
     if verbose:
-        print(str(cwd or "") + "> " + repr(args))
+        print((cwd or "") + "> " + repr(args))
     with tempfile.TemporaryFile() as f:
         try:
             ret = subprocess.run(args, check=True, stdout=f, stderr=subprocess.STDOUT,

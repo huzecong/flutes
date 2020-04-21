@@ -1,3 +1,5 @@
+from .__version__ import VERSION as __version__
+
 from .exception import *
 from .fs import *
 from .io import *

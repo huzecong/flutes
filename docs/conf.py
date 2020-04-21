@@ -23,6 +23,9 @@ project = 'Flutes'
 copyright = '2020, Zecong Hu'
 author = 'Zecong Hu'
 
+from flutes import __version__
+version = __version__
+
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be

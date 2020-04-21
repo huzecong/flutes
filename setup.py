@@ -8,7 +8,7 @@ with open("requirements.txt", "r") as f:
 
 setuptools.setup(
     name="flutes",
-    version="0.1",
+    version="0.2.0",
     url="https://github.com/huzecong/flutes",
 
     author="Zecong Hu",

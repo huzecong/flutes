@@ -10,6 +10,7 @@ from typing import Callable, List
 from termcolor import colored
 
 from .multiproc import get_worker_id
+from .types import PathType
 
 __all__ = [
     "get_logging_levels",
@@ -29,7 +30,7 @@ class MultiprocessingFileHandler(logging.Handler):
     Credit: https://mattgathu.github.io/multiprocessing-logging-in-python/
     """
 
-    def __init__(self, path: str, mode: str = "a"):
+    def __init__(self, path: PathType, mode: str = "a"):
         logging.Handler.__init__(self)
 
         self._handler = logging.FileHandler(path, mode=mode)
@@ -124,7 +125,7 @@ def get_logging_levels() -> List[str]:
     return list(LEVEL_MAP.keys())
 
 
-def set_log_file(path: str, fmt: str = "%(asctime)s %(levelname)s: %(message)s") -> None:
+def set_log_file(path: PathType, fmt: str = "%(asctime)s %(levelname)s: %(message)s") -> None:
     r"""Set the path of the log file.
 
     :param path: Path to the log file.

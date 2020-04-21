@@ -14,6 +14,8 @@ from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, 
 
 from typing_extensions import Literal
 
+from .types import PathType
+
 __all__ = [
     "get_worker_id",
     "PoolState",
@@ -431,7 +433,7 @@ class MultiprocessingFileWriter(IO[Any]):
     This is very similar to :class:`flutes.log.MultiprocessingFileHandler`.
     """
 
-    def __init__(self, path: str, mode: str = "a"):
+    def __init__(self, path: PathType, mode: str = "a"):
         self._file = open(path, mode)
         self._queue: 'mp.Queue[str]' = mp.Queue(-1)
 
