@@ -2,26 +2,13 @@ import subprocess
 import tempfile
 from typing import Dict, List, NamedTuple, Optional, TypeVar, Union
 
-# import tenacity
-
-# from .log import log
+from .types import PathType
 
 __all__ = [
     "run_command",
     "CommandResult",
     "error_wrapper",
 ]
-
-
-# def _run_command_retry_logger(retry_state: tenacity.RetryCallState) -> None:
-#     args = retry_state.args[0] if len(retry_state.args) > 0 else retry_state.kwargs['args']
-#     if isinstance(args, list):
-#         args = ' '.join(args)
-#     cwd = retry_state.args[2] if len(retry_state.args) > 2 else retry_state.kwargs.get('cwd', None)
-#     msg = f"{retry_state.attempt_number} failed attempt(s) for command: '{args}'"
-#     if cwd is not None:
-#         msg += f" in working directory '{cwd}'"
-#     log(msg, "warning")
 
 
 class CommandResult(NamedTuple):
@@ -72,7 +59,7 @@ MAX_OUTPUT_LENGTH = 8192
 #                 wait=tenacity.wait_random_exponential(multiplier=2, max=60),
 #                 before_sleep=_run_command_retry_logger)
 def run_command(args: Union[str, List[str]], *,
-                env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None, timeout: Optional[float] = None,
+                env: Optional[Dict[str, str]] = None, cwd: Optional[PathType] = None, timeout: Optional[float] = None,
                 verbose: bool = False, return_output: bool = False, ignore_errors: bool = False,
                 **kwargs) -> CommandResult:
     r"""A wrapper over ``subprocess.check_output`` that prevents deadlock caused by the combination of pipes and
@@ -93,11 +80,11 @@ def run_command(args: Union[str, List[str]], *,
     :return: An instance of :class:`CommandResult`.
     """
     if verbose:
-        print((cwd or "") + "> " + repr(args))
+        print(str(cwd or "") + "> " + repr(args))
     with tempfile.TemporaryFile() as f:
         try:
             ret = subprocess.run(args, check=True, stdout=f, stderr=subprocess.STDOUT,
-                                 timeout=timeout, env=env, cwd=cwd, **kwargs)
+                                 timeout=timeout, env=env, cwd=str(cwd), **kwargs)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             f.seek(0)
             output = f.read()

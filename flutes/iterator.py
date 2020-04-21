@@ -226,12 +226,10 @@ class LazyList(Generic[T], Sequence[T]):
             del self.iter
 
     @overload
-    def __getitem__(self, idx: int) -> T:
-        ...
+    def __getitem__(self, idx: int) -> T: ...
 
     @overload
-    def __getitem__(self, idx: slice) -> List[T]:
-        ...
+    def __getitem__(self, idx: slice) -> List[T]: ...
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -258,16 +256,13 @@ class Range(Sequence[int]):
     """
 
     @overload
-    def __init__(self, stop: int):
-        ...
+    def __init__(self, stop: int): ...
 
     @overload
-    def __init__(self, start: int, stop: int):
-        ...
+    def __init__(self, start: int, stop: int): ...
 
     @overload
-    def __init__(self, start: int, stop: int, step: int):
-        ...
+    def __init__(self, start: int, stop: int, step: int): ...
 
     def __init__(self, *args):
         if len(args) == 0 or len(args) > 3:
@@ -300,12 +295,10 @@ class Range(Sequence[int]):
         return self.l + self.step * idx
 
     @overload
-    def __getitem__(self, idx: int) -> int:
-        ...
+    def __getitem__(self, idx: int) -> int: ...
 
     @overload
-    def __getitem__(self, idx: slice) -> List[int]:
-        ...
+    def __getitem__(self, idx: slice) -> List[int]: ...
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -342,12 +335,10 @@ class MapList(Generic[R], Sequence[R]):
         self.list = lst
 
     @overload
-    def __getitem__(self, idx: int) -> R:
-        ...
+    def __getitem__(self, idx: int) -> R: ...
 
     @overload
-    def __getitem__(self, idx: slice) -> List[R]:
-        ...
+    def __getitem__(self, idx: slice) -> List[R]: ...
 
     def __getitem__(self, item):
         if isinstance(item, int):
@@ -357,5 +348,5 @@ class MapList(Generic[R], Sequence[R]):
     def __iter__(self) -> Iterator[R]:
         return map(self.func, self.list)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.list)

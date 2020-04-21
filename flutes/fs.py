@@ -7,6 +7,7 @@ import subprocess
 from typing import Optional
 
 from .log import log
+from .types import PathType
 
 __all__ = [
     "get_folder_size",
@@ -18,16 +19,16 @@ __all__ = [
 ]
 
 if platform.system() == "Darwin":
-    def get_folder_size(path: str) -> int:
+    def get_folder_size(path: PathType) -> int:
         # Credit: https://stackoverflow.com/a/25574638/4909228
         r"""Get disk usage of given path in bytes."""
-        return int(subprocess.check_output(['du', '-s', path],
+        return int(subprocess.check_output(['du', '-s', str(path)],
                                            env={"BLOCKSIZE": "512"}).split()[0].decode('utf-8')) * 512
 else:
-    def get_folder_size(path: str) -> int:
+    def get_folder_size(path: PathType) -> int:
         # Credit: https://stackoverflow.com/a/25574638/4909228
         r"""Get disk usage of given path in bytes."""
-        return int(subprocess.check_output(['du', '-bs', path]).split()[0].decode('utf-8'))
+        return int(subprocess.check_output(['du', '-bs', str(path)]).split()[0].decode('utf-8'))
 
 
 def readable_size(size: float) -> str:
@@ -48,10 +49,10 @@ def readable_size(size: float) -> str:
     return f"{size:.2f}{units[-1]}"
 
 
-def get_file_lines(path: str) -> int:
+def get_file_lines(path: PathType) -> int:
     r"""Get number of lines in text file.
     """
-    return int(subprocess.check_output(['wc', '-l', path]).split()[0].decode('utf-8'))
+    return int(subprocess.check_output(['wc', '-l', str(path)]).split()[0].decode('utf-8'))
 
 
 def remove_prefix(s: str, prefix: str) -> str:
@@ -73,7 +74,7 @@ def remove_prefix(s: str, prefix: str) -> str:
     return s[prefix_len:]
 
 
-def copy_tree(src: str, dst: str, overwrite: bool = False):
+def copy_tree(src: PathType, dst: PathType, overwrite: bool = False):
     r"""Copy contents of folder ``src`` to folder ``dst``. The ``dst`` folder can exist or whatever (looking at you,
     :py:func:`shutil.copytree`).
 
@@ -93,7 +94,7 @@ def copy_tree(src: str, dst: str, overwrite: bool = False):
     shutil.copystat(src, dst)
 
 
-def cache(path: Optional[str], verbose: bool = True, name: Optional[str] = None):
+def cache(path: Optional[PathType], verbose: bool = True, name: Optional[str] = None):
     r"""A function decorator that caches the output of the function to disk. If the cache file exists, it is loaded from
     disk and the function will not be executed.
 

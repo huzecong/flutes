@@ -28,10 +28,12 @@ def test_progress_open() -> None:
     def _test(modes=None):
         def decorator(func):
             def wrapped():
-                for mode in (modes or ["r", "rb"]):
-                    with flutes.progress_open(f_temp.name, mode) as f:
-                        func(f)
-                        assert f.progress_bar.n == f.progress_bar.total
+                for verbose in [False, True]:
+                    for mode in (modes or ["r", "rb"]):
+                        with flutes.progress_open(f_temp.name, mode, verbose=verbose) as f:
+                            func(f)
+                            if verbose:
+                                assert f.progress_bar.n == f.progress_bar.total
 
             return wrapped
 

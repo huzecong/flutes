@@ -44,7 +44,7 @@ def test_LazyList() -> None:
     assert l[-2] == 98
 
     l = flutes.LazyList(range(100))
-    for i, x in enumerate(l[:50]):
+    for i, x in enumerate(l):
         assert i == x
     assert len(l) == 100
     for i, x in enumerate(l):

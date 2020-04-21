@@ -109,13 +109,11 @@ class progress_open:
 
     @overload
     def __new__(cls, path: PathType, mode: Literal['r'] = 'r', *, encoding: str = "utf-8",  # type: ignore[misc]
-                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[str]:
-        ...
+                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[str]: ...
 
     @overload
     def __new__(cls, path: PathType, mode: Literal['rb'], *, encoding: str = "utf-8",  # type: ignore[misc]
-                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[bytes]:
-        ...
+                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[bytes]: ...
 
     def __new__(cls, path, mode="r", *, encoding='utf-8', verbose=True, buffer_size=io.DEFAULT_BUFFER_SIZE, **kwargs):
         if not verbose:
