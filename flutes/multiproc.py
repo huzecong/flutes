@@ -311,12 +311,15 @@ class StatefulPoolWrapper(Generic[State]):
         received_ids: Set[int] = set()
         states = []
         while len(received_ids) < self._pool._processes:  # type: ignore[attr-defined]
-            result = self.apply(self._return_state, (received_ids,))  # type: ignore[attr-defined]
+            result = self.apply(self._return_state, (received_ids,))
             if result is not None:
                 state, worker_id = result
                 received_ids.add(worker_id)
                 states.append(state)
         return states
+
+    def __getattr__(self, item):
+        return getattr(self._pool, item)
 
 
 class StatefulPoolType(Pool, Generic[State]):
@@ -421,10 +424,9 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
         print(traceback.format_exc())
     finally:
         close_fn()
-        if isinstance(pool, mp.pool.Pool):
-            # Only required in multiprocessing scenario
-            pool.close()
-            pool.terminate()
+        # In Python 3.8, the interpreter hangs when the pool is not properly closed.
+        pool.close()
+        pool.terminate()
 
 
 class MultiprocessingFileWriter(IO[Any]):

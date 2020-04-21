@@ -116,8 +116,7 @@ LEVEL_MAP = {
     "info": logging.INFO,
     "quiet": 999,
 }
-manager = multiprocessing.Manager()
-_CONSOLE_LOGGING_LEVEL = manager.Value('i', LEVEL_MAP["info"])
+_CONSOLE_LOGGING_LEVEL = multiprocessing.Value('i', LEVEL_MAP["info"], lock=False)
 
 
 def get_logging_levels() -> List[str]:
@@ -151,7 +150,7 @@ def log(msg: str, level: str = "info", force_console: bool = False, include_proc
         worker_id = get_worker_id()
         if worker_id is not None:
             msg = f"(Worker {worker_id:2d}) {msg}"
-    if force_console or LEVEL_MAP[level] >= _CONSOLE_LOGGING_LEVEL.get():
+    if force_console or LEVEL_MAP[level] >= _CONSOLE_LOGGING_LEVEL.value:
         time_str = time.strftime("[%Y-%m-%d %H:%M:%S]")
         _CONSOLE_LOG_FN(colored(time_str, COLOR_MAP[level]) + " " + msg)
     if LOGGER.hasHandlers():
@@ -168,7 +167,7 @@ def set_logging_level(level: str, console: bool = True, file: bool = True) -> No
     if level not in LEVEL_MAP:
         raise ValueError(f"Incorrect logging level '{level}'")
     if console:
-        _CONSOLE_LOGGING_LEVEL.set(LEVEL_MAP[level])
+        _CONSOLE_LOGGING_LEVEL.value = LEVEL_MAP[level]
     if file:
         LOGGER.setLevel(LEVEL_MAP[level])
 
