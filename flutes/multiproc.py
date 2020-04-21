@@ -8,8 +8,9 @@ import traceback
 import types
 from collections import defaultdict
 from multiprocessing.pool import Pool
+from types import FrameType
 from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type,
-                    TypeVar, Union, overload)
+                    TypeVar, Union, cast, overload)
 
 from typing_extensions import Literal
 
@@ -43,9 +44,10 @@ class DummyApplyResult(mp.pool.ApplyResult, Generic[T]):
         return self._value
 
 
-class DummyPool(Pool):
+class DummyPool:
     r"""A wrapper over ``multiprocessing.Pool`` that uses single-threaded execution when :attr:`processes` is zero.
     """
+    _state: int
 
     def __init__(self, processes: Optional[int] = None, initializer: Optional[Callable[..., None]] = None,
                  initargs: Iterable[Any] = (), maxtasksperchild: Optional[int] = None,
@@ -58,6 +60,8 @@ class DummyPool(Pool):
                 return locals()
 
             self._process_state = run_initializer().get("__state__", None)
+
+        self._state = mp.pool.RUN
 
     def imap(self, fn: Callable[[T], R], iterable: Iterable[T], *_, **__) -> Iterator[R]:
         if self._process_state is not None:
@@ -111,6 +115,9 @@ class DummyPool(Pool):
     def __enter__(self):
         return self
 
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._state = mp.pool.TERMINATE
+
 
 PoolType = Union[Pool, DummyPool]
 
@@ -133,17 +140,18 @@ def _pool_state_init(init_fn: Callable[..., None], *args, **kwargs) -> None:
     # Wrapper for initializer function passed to stateful pools.
     state_obj = PoolState()
     init_fn(state_obj, *args, **kwargs)
-    local_vars = inspect.currentframe().f_back.f_locals  # _pool_state_init -> worker
+    # _pool_state_init -> worker
+    local_vars = inspect.currentframe().f_back.f_locals  # type: ignore[union-attr]
     local_vars['__state__'] = state_obj
     del local_vars
 
 
 def _pool_fn_with_state(fn: Callable[..., R], *args, **kwargs) -> R:
     # Wrapper for compute function passed to stateful pools.
-    frame = inspect.currentframe().f_back
-    while '__state__' not in frame.f_locals:
-        frame = frame.f_back
-    local_vars = frame.f_locals  # _pool_fn_with_state -> mapper -> worker
+    frame = cast(FrameType, inspect.currentframe().f_back)  # type: ignore[union-attr]
+    if '__state__' not in frame.f_locals:  # in DummyPool we have only one layer on the stack
+        frame = cast(FrameType, frame.f_back)  # _pool_fn_with_state -> mapper -> worker
+    local_vars = frame.f_locals
     state_obj = local_vars['__state__']
     del frame, local_vars
     return fn(state_obj, *args, **kwargs)
@@ -156,12 +164,15 @@ def _chain_fns(fns: List[Callable[..., R]], fn_arg_kwargs: List[Tuple[Tuple[Any,
     return rets
 
 
-class StatefulPoolWrapper:
+State = TypeVar('State', bound=PoolState)
+
+
+class StatefulPoolWrapper(Generic[State]):
     _pool: PoolType
-    _state_class: Type[PoolState]
+    _state_class: Type[State]
     _class_methods: Set[int]  # a list of addresses of instance methods for the state class
 
-    def __init__(self, pool_class: Type[PoolType], state_class: Type[PoolState], state_init_args: Tuple[Any, ...],
+    def __init__(self, pool_class: Type[PoolType], state_class: Type[State], state_init_args: Tuple[Any, ...],
                  args: Tuple[Any, ...], kwargs: Dict[str, Any]):
         self._state_class = state_class
 
@@ -169,8 +180,9 @@ class StatefulPoolWrapper:
         self._class_methods = set()
         for attr_name in dir(self._state_class):
             attr_val = getattr(self._state_class, attr_name)
-        if inspect.isfunction(attr_val):
-            self._class_methods.add(id(attr_val))
+            if inspect.isfunction(attr_val):
+                self._class_methods.add(id(attr_val))
+        self._class_methods.add(id(self._return_state))  # add special method
 
         def get_arg(pos: int, name: str, default=None):
             if len(args) > pos + 1:
@@ -207,14 +219,19 @@ class StatefulPoolWrapper:
             wrapped_method = self._define_method(pool_method)
             setattr(self, name, wrapped_method)
 
-    def _wrap_fn(self, func: Callable[[T], R]) -> Callable[[T], R]:
+    def _wrap_fn(self, func: Callable[[State, T], R]) -> Callable[[T], R]:
         # If the function is a `PoolState` method, wrap it to allow access to `self`.
         if id(func) in self._class_methods:
-            return functools.partial(_pool_fn_with_state, func)  # type: ignore
+            return functools.partial(_pool_fn_with_state, func)  # type: ignore[return-value]
+        if inspect.ismethod(func):
+            if func.__self__.__class__ is self._state_class:
+                raise ValueError(f"Bound methods of the pool state class {self._state_class.__name__} are not "
+                                 f"accepted; use an unbound method instead.")
         if inspect.isfunction(func):
             args = inspect.getfullargspec(func)
             if len(args.args) > 0 and args.args[0] == "self":
-                raise ValueError(f"Only methods of the pool state class {self._state_class.__name__} are accepted")
+                raise ValueError(f"Only unbound methods of the pool state class {self._state_class.__name__} are "
+                                 f"accepted")
         return func
 
     def _define_method(self, pool_method: Callable[..., R]) -> Callable[..., R]:
@@ -224,29 +241,52 @@ class StatefulPoolWrapper:
 
         return wrapped_method
 
+    @staticmethod
+    def _return_state(self, received_ids: Set[int]) -> Optional[Tuple[State, int]]:
+        worker_id = get_worker_id()
+        if worker_id in received_ids:
+            return None
+        return (self, worker_id)
 
-State = TypeVar('State', bound=PoolState)
+    def get_states(self) -> List[State]:
+        if self._pool._state == mp.pool.TERMINATE:
+            raise ValueError("Pool is already terminated")
+        if isinstance(self._pool, DummyPool):
+            return [self._pool._process_state]
+        assert isinstance(self._pool, Pool)
+        received_ids = set()
+        states = []
+        while len(received_ids) < self._pool._processes:
+            result = self.apply(self._return_state, (received_ids,))
+            if result is not None:
+                state, worker_id = result
+                received_ids.add(worker_id)
+                states.append(state)
+        return states
 
 
 class StatefulPoolType(Pool, Generic[State]):
     # Stub for stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
 
-    def imap(self,  # type: ignore
+    def imap(self,  # type: ignore[override]
              fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1) -> Iterator[R]:
         ...
 
-    def imap_unordered(self,  # type: ignore
+    def imap_unordered(self,  # type: ignore[override]
                        fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1) -> Iterator[R]:
         ...
 
-    def map(self,  # type: ignore
+    def map(self,  # type: ignore[override]
             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None) -> List[R]:
         ...
 
-    def map_async(self,  # type: ignore
+    def map_async(self,  # type: ignore[override]
                   fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
                   callback: Optional[Callable[[T], None]] = None,
                   error_callback: Optional[Callable[[BaseException], None]] = None) -> 'mp.pool.ApplyResult[List[R]]':
+        ...
+
+    def get_states(self) -> List[State]:
         ...
 
 
@@ -260,7 +300,7 @@ def safe_pool(processes: int, *args, state_class: Literal[None] = None,
               closing: Optional[List[Any]] = None, **kwargs) -> Pool: ...
 
 
-@contextlib.contextmanager  # type: ignore
+@contextlib.contextmanager  # type: ignore[misc]
 def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **kwargs):
     r"""A wrapper over ``multiprocessing.DummyPool`` that gracefully handles exceptions.
 

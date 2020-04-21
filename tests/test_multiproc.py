@@ -4,6 +4,8 @@ import operator
 from typing import Dict, List
 from unittest.mock import NonCallableMagicMock, MagicMock
 
+import pytest
+
 import flutes
 from .utils import check_iterator
 
@@ -49,7 +51,29 @@ def test_stateful_pool() -> None:
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs, state_class=PoolState, init_args=(large_dict,)) as pool:
             result = sum(pool.imap_unordered(PoolState.convert, seq, chunksize=1000))
+            with pytest.raises(ValueError, match="Bound methods of the pool state class"):
+                _ = sum(pool.imap_unordered(PoolState({}).convert, seq, chunksize=1000))
+            with pytest.raises(ValueError, match="Only unbound methods of the pool state class"):
+                _ = sum(pool.imap_unordered(PoolState2.generate, seq, chunksize=1000))
         assert result == target
+
+
+class PoolState2(flutes.PoolState):
+    def __init__(self):
+        self.numbers: List[int] = []
+
+    def generate(self, start: int, stop: int) -> None:
+        for x in range(start, stop):
+            self.numbers.append(x)
+
+
+def test_stateful_pool_get_state() -> None:
+    for n_procs in [0, 2]:
+        with flutes.safe_pool(n_procs, state_class=PoolState2) as pool:
+            intervals = list(range(0, 100 + 1, 5))
+            pool.starmap(PoolState2.generate, zip(intervals, intervals[1:]))
+            states = pool.get_states()
+            assert sorted(x for state in states for x in state.numbers) == list(range(100))
 
 
 def test_pool_methods() -> None:
