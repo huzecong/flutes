@@ -14,7 +14,21 @@ R = TypeVar('R')
 
 
 def reverse_map(d: Dict[T, int]) -> List[T]:
-    r"""Given a dict containing pairs of ``(item, id)``, return a list where the ``id``-th element is ``item``."""
+    r"""Given a dict containing pairs of ``(item, id)``, return a list where the ``id``-th element is ``item``.
+
+    .. note::
+        It is assumed that the ``id``\ s form a permutation.
+
+    .. code:: python
+
+        >>> words = ['a', 'aardvark', 'abandon', ...]
+        >>> word_to_id = {word: idx for idx, word in enumerate(words)}
+        >>> id_to_word = reverse_map(word_to_id)
+        >>> (words == id_to_word)
+        True
+
+    :param d: The dictionary mapping ``item`` to ``id``.
+    """
     return [k for k, _ in sorted(d.items(), key=lambda xs: xs[1])]
 
 
@@ -23,11 +37,11 @@ _NO_MAP_INSTANCE_ATTR = "--no-map--"
 
 
 def register_no_map_class(container_type: Type[T]) -> None:
-    r"""Register a container type as `non-mappable`, i.e. instances of the class will be treated as singleton objects in
-    :meth:`map_structure` and :meth:`map_structure_zip`, their contents will not be traversed. This would be useful for
+    r"""Register a container type as `non-mappable`, i.e., instances of the class will be treated as singleton objects in
+    :func:`map_structure` and :func:`map_structure_zip`, their contents will not be traversed. This would be useful for
     certain types that subclass built-in container types, such as ``torch.Size``.
 
-    :param container_type: The type of the container, e.g. ``list``, ``dict``.
+    :param container_type: The type of the container, e.g. :py:class:`list`, :py:class:`dict`.
     """
     return _NO_MAP_TYPES.add(container_type)
 
@@ -45,8 +59,8 @@ def _no_map_type(container_type: Type[T]) -> Type[T]:
 
 @no_type_check
 def no_map_instance(instance: T) -> T:
-    r"""Register a container instance as `non-mappable`, i.e. it will be treated as a singleton object in
-    :meth:`map_structure` and :meth:`map_structure_zip`, its contents will not be traversed.
+    r"""Register a container instance as `non-mappable`, i.e., it will be treated as a singleton object in
+    :func:`map_structure` and :func:`map_structure_zip`, its contents will not be traversed.
 
     :param instance: The container instance.
     """
@@ -89,8 +103,7 @@ def map_structure_zip(fn: Callable[..., R], objs: Sequence[Collection[T]]) -> Co
 
     .. note::
         Although identical structures are required, it is not enforced by assertions. The structure of the first
-        collection is assumed to be the structure for all collections. For rare cases where collections need to have
-        different structures, refer to :meth:`no_map`.
+        collection is assumed to be the structure for all collections.
 
     :param fn: The function to call on elements.
     :param objs: The list of collections to map function over.

@@ -3,3 +3,5 @@ iteratively
 th
 iterable
 initializer
+doesn
+stateful

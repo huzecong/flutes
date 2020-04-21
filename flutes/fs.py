@@ -33,6 +33,11 @@ else:
 def readable_size(size: float) -> str:
     r"""Represent file size in human-readable format.
 
+    .. code:: python
+
+        >>> readable_size(1024 * 1024)
+        "1.00M"
+
     :param size: File size in bytes.
     """
     units = ["", "K", "M", "G", "T", "P"]
@@ -51,6 +56,17 @@ def get_file_lines(path: str) -> int:
 
 def remove_prefix(s: str, prefix: str) -> str:
     r"""Remove the specified prefix from a string. If only parts of the prefix match, then only that part is removed.
+
+    .. code:: python
+
+        >>> remove_prefix("https://github.com/huzecong/flutes", "https://")
+        "github.com/huzecong/flutes"
+
+        >>> remove_prefix("preface", "prefix")
+        "face"
+
+    :param s: The string whose prefix we want to remove.
+    :param prefix: The prefix to remove.
     """
     length = min(len(s), len(prefix))
     prefix_len = next((idx for idx in range(length) if s[idx] != prefix[idx]), length)
@@ -59,7 +75,7 @@ def remove_prefix(s: str, prefix: str) -> str:
 
 def copy_tree(src: str, dst: str, overwrite: bool = False):
     r"""Copy contents of folder ``src`` to folder ``dst``. The ``dst`` folder can exist or whatever (looking at you,
-    :meth:`shutil.copytree`).
+    :py:func:`shutil.copytree`).
 
     :param src: The source directory.
     :param dst: The destination directory. If it doesn't exist, it will be created.

@@ -132,6 +132,56 @@ def get_worker_id() -> Optional[int]:
 
 
 class PoolState:
+    r"""Base class for multi-processing pool states. Pool states are mutable objects stored on each worker process, it
+    allows keeping track of an process-local internal state that persists through tasks. This extends the capabilities
+    of pool tasks beyond pure functions --- side-effects can also be recorded.
+
+    To define a pool state, subclass the :class:`PoolState` class and define the ``__init__`` method, which will be
+    called when each worker process is spawn. Methods of the state class can then be used as pool tasks.
+
+    Here's an comprehensive example that reads a text file and counts the frequencies for each word appearing in the
+    file. We use a map-reduce approach that distributes tasks to each pool worker and then "reduces" (aggregates) the
+    results.
+
+    .. code:: python
+
+        class WordCounter(flutes.PoolState):
+            def __init__(self):
+                # Initializes the state; will be called when a worker process is spawn.
+                self.word_cnt = collections.Counter()
+
+            @flutes.exception_wrapper()  # prevent the worker from crashing, thus losing data
+            def count_words(self, sentence):
+                self.word_cnt.update(sentence.split())
+
+        def count_words_in_file(path):
+            with open(path) as f:
+                lines = [line for line in f]
+            # Construct a process pool while specifying the pool state class we're using.
+            with flutes.safe_pool(processes=4, state_class=WordCounter) as pool:
+                # Map the tasks as usual.
+                for _ in pool.imap_unordered(WordCounter.count_words, sentences, chunksize=1000):
+                    pass
+                word_counter = collections.Counter()
+                # Gather the states and perform the reduce step.
+                for state in pool.get_states():
+                    word_counter.update(state.word_cnt)
+            return word_counter
+
+    A stateful pool with ``State`` as the state class supports using these functions as tasks:
+
+    - An **unbound** method of ``State`` class. The unbound method will be bound to the process-local state upon
+      dispatch.
+    - Any other pickle-able function. These functions will not be able to access the pool state. As a precaution, an
+      exception will be thrown if the first argument of the function is ``self``.
+
+    .. note::
+        ``pool.get_state()`` is only available for stateful pools, and must be called within the ``with`` block, before
+        the pool terminates. When invoked, additional tasks to retrieve the states are added to the pool's task queue,
+        and the function will block until the tasks complete.
+
+    **See also:** :func:`safe_pool`
+    """
     # Dummy base class for pool processor states.
     pass
 
@@ -302,12 +352,17 @@ def safe_pool(processes: int, *args, state_class: Literal[None] = None,
 
 @contextlib.contextmanager  # type: ignore[misc]
 def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **kwargs):
-    r"""A wrapper over ``multiprocessing.DummyPool`` that gracefully handles exceptions.
+    r"""A wrapper over :py:class:`multiprocessing.Pool <multiprocessing.pool.Pool>` with additional functionalities:
 
-    :param processes: The number of worker processes to run. A value of 0 means single threaded execution.
+    - Fallback to sequential execution when ``processes == 0``.
+    - Stateful processes: Functions run in the pool will have access to a mutable state class. See :class:`PoolState`
+      for details.
+    - Handles exceptions gracefully.
+
+    :param processes: The number of worker processes to run. A value of 0 means sequential execution in the current
+        process.
     :param state_class: The class of the pool state. This allows functions run by the pool to access a mutable
-        process-local state. The ``state_class`` must be a subclass of :class:`PoolState`. Defaults to ``None``. Please
-        see :class:`PoolState` for more information.
+        process-local state. The ``state_class`` must be a subclass of :class:`PoolState`. Defaults to ``None``.
     :param init_args: Arguments to the initializer of the pool state. The state will be constructed with:
 
         .. code:: python
@@ -317,7 +372,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
     :param closing: An optional list of objects to close at exit, routines to run at exit. For each element ``obj``:
 
         - If it is a callable, ``obj`` is called with no arguments.
-        - If it has an ``close`` method, ``obj.close()`` is invoked.
+        - If it has an ``close()`` method, ``obj.close()`` is invoked.
         - Otherwise, it is ignored.
 
     :return: A context manager that can be used in a ``with`` statement.
@@ -375,7 +430,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
 class MultiprocessingFileWriter(IO[Any]):
     r"""A multiprocessing file writer that allows multiple processes to write to the same file. Order is not guaranteed.
 
-    This is very similar to :class:`~flutes.log.MultiprocessingFileHandler`.
+    This is very similar to :class:`flutes.log.MultiprocessingFileHandler`.
     """
 
     def __init__(self, path: str, mode: str = "a"):
@@ -406,7 +461,11 @@ class MultiprocessingFileWriter(IO[Any]):
 
 
 def kill_proc_tree(pid: int, including_parent: bool = True) -> None:
-    r"""Kill entire process tree."""
+    r"""Kill all child processes of a given process.
+
+    :param pid: The process ID (PID) of the process whose children we want to kill.
+    :param including_parent: If ``True``, the process itself is killed as well. Defaults to ``True``.
+    """
     import psutil
     parent = psutil.Process(pid)
     children = parent.children(recursive=True)
@@ -442,7 +501,8 @@ Event = Union[NewEvent, UpdateEvent, WriteEvent, QuitEvent]
 
 
 class ProgressBarManager:
-    r"""A manager for ``tqdm`` progress bars that allows maintaining multiple bars from multiple worker processes.
+    r"""A manager for `tqdm <https://tqdm.github.io/>`_ progress bars that allows maintaining multiple bars from
+    multiple worker processes.
 
     .. code:: python
 
@@ -476,6 +536,8 @@ class ProgressBarManager:
         with flutes.safe_pool(4) as pool:
             for idx, _ in enumerate(pool.imap_unordered(run_fn, data)):
                 flutes.log(f"Processed {idx + 1} arrays")
+
+    :param kwargs: Default arguments for the `tqdm <https://tqdm.github.io/>`_ progress bar initializer.
     """
 
     class Proxy:

@@ -33,6 +33,12 @@ def register_ipython_excepthook() -> None:
 
 
 def log_exception(e, user_msg: Optional[str] = None, **kwargs):
+    r"""Convenience function to log an exception using the logging interface.
+
+    :param e: The exception instance.
+    :param user_msg: An optional user message to print.
+    :param kwargs: Additional arguments for :func:`~flutes.log.log`.
+    """
     exc_msg = f"<{e.__class__.__qualname__}> {e}"
     if user_msg is not None:
         exc_msg = f"{user_msg}: {exc_msg}"
@@ -48,7 +54,7 @@ def log_exception(e, user_msg: Optional[str] = None, **kwargs):
 
 def exception_wrapper(handler_fn=None):
     r"""Function decorator that calls the specified handler function when a exception occurs inside the decorated
-    function. By default, ``handler_fn`` is ``None``, and :meth:`log_exception` will be called to print the exception
+    function. By default, ``handler_fn`` is ``None``, and :func:`log_exception` will be called to print the exception
     details.
 
     A custom handler function takes the following arguments:
@@ -71,7 +77,7 @@ def exception_wrapper(handler_fn=None):
 
         foo(1, "2", "arg1", "arg2", four=4)
 
-    Assume a :exc:`ValueError` is thrown, the argument values for ``handler_fn`` would be:
+    Assuming a :py:exc:`ValueError` is thrown, the argument values for ``handler_fn`` would be:
 
     .. code::
 

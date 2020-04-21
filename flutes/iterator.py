@@ -21,6 +21,11 @@ R = TypeVar('R')
 def chunk(n: int, iterable: Iterable[T]) -> Iterator[List[T]]:
     r"""Split the iterable into chunks, with each chunk containing no more than ``n`` elements.
 
+    .. code:: python
+
+        >>> list(chunk(3, range(10)))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+
     :param n: The maximum number of elements in one chunk.
     :param iterable: The iterable.
     :return: An iterator over chunks.
@@ -38,7 +43,13 @@ def chunk(n: int, iterable: Iterable[T]) -> Iterator[List[T]]:
 
 
 def drop_until(pred_fn: Callable[[T], bool], iterable: Iterable[T]) -> Iterator[T]:
-    r"""Drop elements from the iterable until an element that satisfies the predicate is encountered.
+    r"""Drop elements from the iterable until an element that satisfies the predicate is encountered. Similar to the
+    built-in :py:func:`filter` function, but only applied to a prefix of the iterable.
+
+    .. code:: python
+
+        >>> list(drop_until(lambda x: x > 5, range(10)))
+        [6, 7, 8, 9]
 
     :param pred_fn: The predicate that returned elements should satisfy.
     :param iterable: The iterable.
@@ -66,12 +77,13 @@ def split_by(iterable: Iterable[A], empty_segments: bool = False, *, separator: 
 def split_by(iterable: Iterable[A], empty_segments: bool = False, *, criterion=None, separator=None) \
         -> Iterator[List[A]]:
     r"""Split a list into sub-lists by dropping certain elements. Exactly one of ``criterion`` and ``separator`` must be
-    specified. For example::
+    specified. For example:
 
-    .. code-block:: python
+    .. code:: python
 
         >>> list(split_by(range(10), criterion=lambda x: x % 3 == 0))
         [[1, 2], [4, 5], [7, 8]]
+
         >>> list(split_by(" Split by: ", empty_segments=True, separator='.'))
         [[], ['S', 'p', 'l', 'i', 't'], ['b', 'y', ':'], []]
 
@@ -107,7 +119,8 @@ def scanl(func: Callable[[B, A], B], iterable: Iterable[A], initial: B) -> Itera
 
 
 def scanl(func, iterable, *args):
-    r"""Computes the intermediate results of :meth:`reduce`. Equivalent to Haskell's ``scanl``. For example:
+    r"""Computes the intermediate results of :py:func:`~functools.reduce`. Equivalent to Haskell's ``scanl``. For
+    example:
 
     .. code:: python
 
@@ -146,8 +159,8 @@ def scanr(func: Callable[[B, A], B], iterable: Iterable[A], initial: B) -> List[
 
 
 def scanr(func, iterable, *args):
-    r"""Computes the intermediate results of :meth:`reduce` applied in reverse. Equivalent to Haskell's ``scanr``.
-    For example:
+    r"""Computes the intermediate results of :py:func:`~functools.reduce` applied in reverse. Equivalent to Haskell's
+    ``scanr``. For example:
 
     .. code:: python
 

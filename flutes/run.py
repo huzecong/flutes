@@ -26,15 +26,19 @@ __all__ = [
 
 class CommandResult(NamedTuple):
     command: Union[str, List[str]]
+    r"""The executed command in its original form."""
     return_code: int
+    r"""The return code of the executed command."""
     captured_output: Optional[bytes]
+    r"""The terminal output of the command. ``captured_output`` will be ``None`` unless an exception occurred, or
+    ``return_output`` is set to ``True``."""
 
 
 ExcType = TypeVar('ExcType', bound=Exception)
 
 
 def error_wrapper(err: ExcType) -> ExcType:
-    r"""Wrap exceptions raised in `subprocess` to output captured output by default.
+    r"""Wrap exceptions raised in :py:mod:`subprocess` to output captured output by default.
     """
     if not isinstance(err, (subprocess.CalledProcessError, subprocess.TimeoutExpired)):
         return err
@@ -86,6 +90,7 @@ def run_command(args: Union[str, List[str]], *,
     :param return_output: If ``True``, the captured output is returned. Otherwise, the return code is returned.
     :param ignore_errors: If ``True``, exceptions will not be raised. A special return code of -32768 indicates a
         ``subprocess.TimeoutExpired`` error.
+    :return: An instance of :class:`CommandResult`.
     """
     if verbose:
         print((cwd or "") + "> " + repr(args))

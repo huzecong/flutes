@@ -83,30 +83,11 @@ rst_prolog = r"""
     :language: python
 """
 
-autodoc_member_order = 'bysource'
-autodoc_typehints = 'none'
+autodoc_member_order = 'groupwise'
+# autodoc_typehints = 'none'
 
 spelling_lang = 'en_US'
 spelling_word_list_filename = 'spelling_wordlist.txt'
 
 master_doc = 'index'
-
-
-def setup(app):
-    with open("_index") as f:
-        content = f.read()
-    with open("../README.md") as f:
-        readme = f.read()
-        readme = "\n".join(readme.strip().split("\n")[1:])
-    with open("index.md", "w") as f:
-        content = content.replace("<REPLACE_WITH_README>", readme)
-        f.write(content)
-
-    app.add_config_value('recommonmark_config', {
-        # 'url_resolver': lambda url: github_doc_root + url,
-        'auto_toc_tree_section': 'Contents',
-        'enable_math': False,
-        'enable_inline_math': False,
-        'enable_eval_rst': True,
-    }, True)
-    app.add_transform(AutoStructify)
+html4_writer = True
