@@ -8,6 +8,8 @@ __all__ = [
     "scanl",
     "scanr",
     "LazyList",
+    "Range",
+    "MapList",
 ]
 
 T = TypeVar('T')
@@ -16,11 +18,11 @@ B = TypeVar('B')
 R = TypeVar('R')
 
 
-def chunk(iterable: Iterable[T], n: int) -> Iterator[List[T]]:
+def chunk(n: int, iterable: Iterable[T]) -> Iterator[List[T]]:
     r"""Split the iterable into chunks, with each chunk containing no more than ``n`` elements.
 
-    :param iterable: The iterable.
     :param n: The maximum number of elements in one chunk.
+    :param iterable: The iterable.
     :return: An iterator over chunks.
     """
     if n <= 0:
@@ -227,4 +229,120 @@ class LazyList(Generic[T], Sequence[T]):
 
     def __len__(self):
         self._fetch_until(None)
+        return len(self.list)
+
+
+class Range(Sequence[int]):
+    r"""A replacement for built-in :py:class:`range` with support for indexing operators. For example:
+
+    .. code:: python
+
+        >>> r = Range(10)         # (end)
+        >>> r = Range(1, 10 + 1)  # (start, end)
+        >>> r = Range(1, 11, 2)   # (start, end, step)
+        >>> print(r[0], r[2], r[4])
+        1 5 9
+    """
+
+    @overload
+    def __init__(self, stop: int):
+        ...
+
+    @overload
+    def __init__(self, start: int, stop: int):
+        ...
+
+    @overload
+    def __init__(self, start: int, stop: int, step: int):
+        ...
+
+    def __init__(self, *args):
+        if len(args) == 0 or len(args) > 3:
+            raise ValueError("Range should be called the same way as the builtin `range`")
+        if len(args) == 1:
+            self.l = 0
+            self.r = args[0]
+            self.step = 1
+        else:
+            self.l = args[0]
+            self.r = args[1]
+            self.step = 1 if len(args) == 2 else args[2]
+        self.val = self.l
+        self.length = (self.r - self.l) // self.step
+
+    def __iter__(self) -> Iterator[int]:
+        return Range(self.l, self.r, self.step)
+
+    def __next__(self) -> int:
+        if self.val >= self.r:
+            raise StopIteration
+        result = self.val
+        self.val += self.step
+        return result
+
+    def __len__(self) -> int:
+        return self.length
+
+    def _get_idx(self, idx: int) -> int:
+        return self.l + self.step * idx
+
+    @overload
+    def __getitem__(self, idx: int) -> int:
+        ...
+
+    @overload
+    def __getitem__(self, idx: slice) -> List[int]:
+        ...
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return [self._get_idx(idx) for idx in range(*item.indices(self.length))]
+        if item < 0:
+            item = self.length + item
+        return self._get_idx(item)
+
+
+class MapList(Generic[R], Sequence[R]):
+    r"""A wrapper over a list that allows lazily performing transformations on the list elements. It's basically the
+    built-in :py:func:`map` function, with support for indexing operators. An example use case:
+
+    .. code:: python
+
+        >>> import bisect
+
+        >>> # Find index of the first element in `a` whose square is >= 10.
+        ... a = [1, 2, 3, 4, 5]
+        ... pos = bisect.bisect_left(MapList(lambda x: x * x, a), 10)
+        3
+
+        >>> # Find the first index `i` such that `a[i] * b[i]` is >= 10.
+        ... b = [2, 3, 4, 5, 6]
+        ... pos = bisect.bisect_left(MapList(lambda i: a[i] * b[i], Range(len(a))), 10)
+        2
+
+    :param func: The transformation to perform on list elements.
+    :param lst: The list to wrap.
+    """
+
+    def __init__(self, func: Callable[[T], R], lst: Sequence[T]):
+        self.func = func
+        self.list = lst
+
+    @overload
+    def __getitem__(self, idx: int) -> R:
+        ...
+
+    @overload
+    def __getitem__(self, idx: slice) -> List[R]:
+        ...
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self.func(self.list[item])
+        return [self.func(x) for x in self.list[item]]
+
+    def __iter__(self) -> Iterator[R]:
+        return map(self.func, self.list)
+
+    def __len__(self):
         return len(self.list)
