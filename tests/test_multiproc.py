@@ -1,6 +1,9 @@
 import functools
 import multiprocessing as mp
 import operator
+import os
+import tempfile
+import time
 from typing import Dict, List
 from unittest.mock import MagicMock, NonCallableMagicMock
 
@@ -101,8 +104,19 @@ def progress_bar_fn(idx: int, bar) -> None:
         bar.update(1, postfix={"i": i})
         if i % 5 == 1:
             flutes.log(f"test {i}")
-    for i in bar.iter(range(total)):
+    for i in bar.new(range(total)):
         bar.update(postfix={"i": i})
+
+
+def file_progress_bar_fn(idx: int, bar) -> None:
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, "file.txt")
+        with open(path, "w") as f:
+            f.write("\n".join(map(str, range(100))))
+        with flutes.progress_open(path, bar_fn=bar.new, desc=f"Bar {idx}") as fin:
+            bar.update(postfix={"path": path})
+            for line in fin:
+                time.sleep(0.01)
 
 
 def test_ProgressBarManager() -> None:
@@ -113,3 +127,5 @@ def test_ProgressBarManager() -> None:
         with flutes.safe_pool(proc, closing=[manager]) as pool:
             fn = functools.partial(progress_bar_fn, bar=manager.proxy)
             pool.map(fn, range(10))
+            fn = functools.partial(file_progress_bar_fn, bar=manager.proxy)
+            pool.map(fn, range(5))

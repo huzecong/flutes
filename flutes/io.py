@@ -2,7 +2,7 @@ import contextlib
 import io
 import os
 import sys
-from typing import Any, Dict, IO, Optional, overload
+from typing import Any, AnyStr, Callable, Dict, IO, Optional, overload
 
 from tqdm import tqdm
 from typing_extensions import Literal
@@ -47,10 +47,12 @@ def shut_up(stderr: bool = True, stdout: bool = False):
 
 
 class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
-    def __init__(self, raw: io.RawIOBase, buffer_size: int = io.DEFAULT_BUFFER_SIZE, *, bar_kwargs: Dict[str, Any]):
+    def __init__(self, raw: io.RawIOBase, buffer_size: int = io.DEFAULT_BUFFER_SIZE, *,
+                 bar_fn: Callable[..., tqdm], bar_kwargs: Dict[str, Any]):
         super().__init__(raw, buffer_size)
         file_size = os.fstat(raw.fileno()).st_size
-        self.progress_bar = tqdm(total=file_size, **bar_kwargs)
+        self._read_bytes = 0
+        self.progress_bar = bar_fn(total=file_size, **bar_kwargs)
 
     def __enter__(self):
         self.progress_bar.__enter__()
@@ -66,27 +68,51 @@ class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
 
     def read(self, size: Optional[int] = -1) -> bytes:
         ret = super().read(size)
+        self._read_bytes += len(ret)
         self.progress_bar.update(len(ret))
         return ret
 
     def read1(self, size: int = -1) -> bytes:
         ret = super().read1(size)
+        self._read_bytes += len(ret)
         self.progress_bar.update(len(ret))
         return ret
 
     def readline(self, size: int = -1) -> bytes:
         ret = super().readline(size)
+        self._read_bytes += len(ret)
         self.progress_bar.update(len(ret))
         return ret
 
     def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
         ret = super().seek(offset, whence)
-        self.progress_bar.n = ret
-        self.progress_bar.refresh()
+        self.progress_bar.update(ret - self._read_bytes)
+        self._read_bytes = ret
         return ret
 
 
-class progress_open:
+class ProgressReader(IO[AnyStr]):
+    # stub for `progress_open`
+    progress_bar: tqdm
+
+
+@overload
+def progress_open(path: PathType, mode: Literal['r'] = 'r', *, encoding: str = ...,
+                  verbose: bool = ..., buffer_size: int = ..., **kwargs) -> ProgressReader[str]: ...
+
+
+@overload
+def progress_open(path: PathType, mode: Literal['rb'], *, encoding: str = ...,
+                  verbose: bool = ..., buffer_size: int = ..., **kwargs) -> ProgressReader[bytes]: ...
+
+
+@overload
+def progress_open(path: PathType, mode: str, *, encoding: str = ...,
+                  verbose: bool = ..., buffer_size: int = ..., **kwargs) -> ProgressReader[Any]: ...
+
+
+def progress_open(path, mode="r", *, encoding='utf-8', verbose=True, buffer_size=io.DEFAULT_BUFFER_SIZE,
+                  bar_fn: Optional[Callable[..., tqdm]] = None, **kwargs):
     r"""A replacement for :py:func:`open` that shows the progress of reading the file:
 
     .. code:: python
@@ -102,32 +128,31 @@ class progress_open:
     :param verbose: If ``False``, the progress bar is not displayed and a normal file object is returned. Defaults to
         ``True``.
     :param buffer_size: The size of the file buffer. Defaults to :py:data:`io.DEFAULT_BUFFER_SIZE`.
+    :param bar_fn: An optional callable that constructs a progress bar when called. This is useful when you want to
+        override the default progress bar, for instance, to use with :class:`~flutes.ProgressBarManager`:
+
+        .. code:: python
+
+            def process(path: str, bar: flutes.ProgressBarManager.Proxy):
+                with flutes.progress_open(path, bar_fn=bar.new) as f:
+                    ...
+
     :param kwargs: Additional arguments to pass to `tqdm <https://tqdm.github.io/>`_ initializer.
     :return: A file object.
     """
-    progress_bar: tqdm
+    if not verbose:
+        return open(path, mode)
 
-    @overload
-    def __new__(cls, path: PathType, mode: Literal['r'] = 'r', *, encoding: str = "utf-8",  # type: ignore[misc]
-                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[str]: ...
+    if mode not in ["r", "rb"]:
+        raise ValueError(f"Unsupported mode '{mode}'. Only read modes ('r', 'rb') are supported")
 
-    @overload
-    def __new__(cls, path: PathType, mode: Literal['rb'], *, encoding: str = "utf-8",  # type: ignore[misc]
-                verbose: bool = True, buffer_size: int = io.DEFAULT_BUFFER_SIZE, **kwargs) -> IO[bytes]: ...
-
-    def __new__(cls, path, mode="r", *, encoding='utf-8', verbose=True, buffer_size=io.DEFAULT_BUFFER_SIZE, **kwargs):
-        if not verbose:
-            return open(path, mode)
-
-        if mode not in ["r", "rb"]:
-            raise ValueError(f"Unsupported mode '{mode}'. Only read modes ('r', 'rb') are supported")
-
-        kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}]")
-        buffer = f = _ProgressBufferedReader(io.FileIO(str(path), mode="r"), buffer_size, bar_kwargs=kwargs)
-        if mode == "r":
-            f = io.TextIOWrapper(f, encoding=encoding)
-            f.progress_bar = buffer.progress_bar
-        return f
+    kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}{postfix}]")
+    buffer = f = _ProgressBufferedReader(io.FileIO(str(path), mode="r"), buffer_size,
+                                         bar_fn=bar_fn or tqdm, bar_kwargs=kwargs)
+    if mode == "r":
+        f = io.TextIOWrapper(f, encoding=encoding)  # type: ignore[assignment]
+        f.progress_bar = buffer.progress_bar
+    return f
 
 
 class _ReverseReadlineFile:

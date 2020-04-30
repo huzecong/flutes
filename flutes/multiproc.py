@@ -12,6 +12,7 @@ from types import FrameType
 from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type,
                     TypeVar, Union, cast, no_type_check, overload)
 
+from tqdm import tqdm
 from typing_extensions import Literal
 
 from .types import PathType
@@ -546,29 +547,51 @@ class ProgressBarManager:
         def __init__(self, queue: 'mp.Queue[Event]'):
             self.queue = queue
 
-        def new(self, **kwargs) -> None:
-            r"""Construct a new progress bar."""
-            self.queue.put_nowait(NewEvent(get_worker_id(), kwargs))
+        @overload
+        def new(self, iterable: Iterable[T], **kwargs) -> Iterator[T]:
+            ...
 
-        def update(self, n: int = 0, *, postfix: Optional[Dict[str, Any]] = None) -> None:
-            self.queue.put_nowait(UpdateEvent(get_worker_id(), n, postfix))
+        @overload
+        def new(self, iterable: Literal[None] = None, **kwargs) -> tqdm:
+            ...
 
-        def iter(self, iterable: Iterable[T], **kwargs) -> Iterator[T]:
-            length = None
-            try:
-                length = len(iterable)  # type: ignore[arg-type]
-            except TypeError:
-                pass
-            self.new(total=length, **kwargs)
+        def _iter(self, iterable: Iterable[T]) -> Iterator[T]:
             for x in iterable:
                 yield x
                 self.update(1)
 
+        def new(self, iterable=None, **kwargs):
+            r"""Construct a new progress bar."""
+            if iterable is not None:
+                length = None
+                try:
+                    length = len(iterable)  # type: ignore[arg-type]
+                except TypeError:
+                    pass
+                kwargs.update(total=length)
+            self.queue.put_nowait(NewEvent(get_worker_id(), kwargs))
+            if iterable is not None:
+                return self._iter(iterable)
+            return self
+
+        def update(self, n: int = 0, *, postfix: Optional[Dict[str, Any]] = None) -> None:
+            # TODO: Add throttle to prevent sending messages too often.
+            self.queue.put_nowait(UpdateEvent(get_worker_id(), n, postfix))
+
         def write(self, message: str) -> None:
             self.queue.put_nowait(WriteEvent(get_worker_id(), message))
 
+        # Methods to imitate a normal progress bar.
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def close(self):
+            pass
+
     def __init__(self, **kwargs):
-        from tqdm import tqdm
         self.manager = mp.Manager()
         self.queue: 'mp.Queue[Event]' = self.manager.Queue(-1)
         self.progress_bars: Dict[Optional[int], tqdm] = {}
@@ -602,7 +625,8 @@ class ProgressBarManager:
                 elif isinstance(event, UpdateEvent):
                     bar = self.progress_bars[event.worker_id]
                     if event.postfix is not None:
-                        bar.set_postfix(event.postfix, refresh=False)
+                        # Only force refresh if we're only setting the postfix.
+                        bar.set_postfix(event.postfix, refresh=event.n == 0)
                     bar.update(event.n)
                 elif isinstance(event, WriteEvent):
                     tqdm.write(event.message)
