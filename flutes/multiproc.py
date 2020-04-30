@@ -189,10 +189,9 @@ class PoolState:
     pass
 
 
-def _pool_state_init(init_fn: Callable[..., None], *args, **kwargs) -> None:
+def _pool_state_init(state_class: Type[PoolState], *args, **kwargs) -> None:
     # Wrapper for initializer function passed to stateful pools.
-    state_obj = PoolState()
-    init_fn(state_obj, *args, **kwargs)
+    state_obj = state_class(*args, **kwargs)  # type: ignore[call-arg]
     # _pool_state_init -> worker
     local_vars = inspect.currentframe().f_back.f_locals  # type: ignore[union-attr]
     local_vars['__state__'] = state_obj
@@ -251,7 +250,7 @@ class StatefulPoolWrapper(Generic[State]):
             else:
                 kwargs[name] = val
 
-        state_init_fn = functools.partial(_pool_state_init, state_class.__init__)
+        state_init_fn = functools.partial(_pool_state_init, state_class)
         # If there's a user-defined initializer function...
         initializer = get_arg(1, "initializer", None)
         init_args = get_arg(2, "initargs", ())
@@ -400,6 +399,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
     else:
         pool_class = mp.Pool
 
+    args = (processes,) + args
     if state_class is not None:
         pool = StatefulPoolWrapper(pool_class, state_class, init_args, args, kwargs)
     else:

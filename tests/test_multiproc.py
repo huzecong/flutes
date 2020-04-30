@@ -39,17 +39,22 @@ def test_safe_pool() -> None:
 
 
 class PoolState(flutes.PoolState):
+    CLASS_VAR: int = 1
+
     def __init__(self, large_dict: Dict[str, int]):
         self.large_dict = large_dict
 
-    def convert(self, x: str) -> int:
+    def _some_func(self, x: str) -> int:
         return self.large_dict[x]
+
+    def convert(self, x: str) -> int:
+        return self._some_func(x) + self.CLASS_VAR
 
 
 def test_stateful_pool() -> None:
     large_dict = {str(i): i for i in range(100000)}
     seq = list(map(str, range(100000)))
-    target = sum(map(int, seq))  # sequential
+    target = sum(map(lambda x: int(x) + 1, seq))  # sequential
 
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs, state_class=PoolState, init_args=(large_dict,)) as pool:
