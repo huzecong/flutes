@@ -133,4 +133,4 @@ def test_ProgressBarManager() -> None:
             fn = functools.partial(progress_bar_fn, bar=manager.proxy)
             pool.map(fn, range(10))
             fn = functools.partial(file_progress_bar_fn, bar=manager.proxy)
-            pool.map(fn, range(5))
+            pool.map(fn, range(4))

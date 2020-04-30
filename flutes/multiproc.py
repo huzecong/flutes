@@ -555,17 +555,12 @@ class ProgressBarManager:
         def new(self, iterable: Literal[None] = None, **kwargs) -> tqdm:
             ...
 
-        def _iter(self, iterable: Iterable[T]) -> Iterator[T]:
-            for x in iterable:
-                yield x
-                self.update(1)
-
         def new(self, iterable=None, **kwargs):
             r"""Construct a new progress bar."""
             if iterable is not None:
                 length = None
                 try:
-                    length = len(iterable)  # type: ignore[arg-type]
+                    length = len(iterable)
                 except TypeError:
                     pass
                 kwargs.update(total=length)
@@ -573,6 +568,11 @@ class ProgressBarManager:
             if iterable is not None:
                 return self._iter(iterable)
             return self
+
+        def _iter(self, iterable: Iterable[T]) -> Iterator[T]:
+            for x in iterable:
+                yield x
+                self.update(1)
 
         def update(self, n: int = 0, *, postfix: Optional[Dict[str, Any]] = None) -> None:
             # TODO: Add throttle to prevent sending messages too often.
