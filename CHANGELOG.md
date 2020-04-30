@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- `progress_open` method now takes an `bar_fn` argument that allows overriding the progress bar creation process, useful
+  for working with `ProgressBarManager`.
+
+### Changed
+- Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
+- Fixed bug in `safe_pool` where the `processes` argument was not passed to the `multiprocessing.Pool` constructor. As
+  a result, pools are always using the maximum number of processes if `processes != 0`.
+- `ProgressBarManager`:
+    - `Proxy.iter` is merged into `Proxy.new`; `Proxy.new` now returns itself if `iterable` is not specified.
+    - Additional dummy methods are added to `Proxy` to imitate the behavior of `tqdm`.
+    - The progress bar is now force-refreshed when `update` is called with `n == 0` and `postfix` specified.
 
 ## [0.2.0] - 2020-04-20
 ### Added
