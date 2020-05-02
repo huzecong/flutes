@@ -186,7 +186,16 @@ class PoolState:
     **See also:** :func:`safe_pool`
     """
     # Dummy base class for pool processor states.
-    pass
+
+    def __return_state__(self):
+        r"""When ``pool.get_states()`` is invoked, this method is called for each pool worker to return its state. The
+        default implementation returns the :class:`PoolState` object itself, but it might be beneficial to override this
+        method in certain cases:
+
+        - The :class:`PoolState` object contains unpickle-able attributes.
+        - You need to dynamically compute the state before it's retrieved.
+        """
+        return self
 
 
 def _pool_state_init(state_class: Type[PoolState], *args, **kwargs) -> None:
@@ -295,18 +304,18 @@ class StatefulPoolWrapper(Generic[State]):
         return wrapped_method
 
     @staticmethod
-    def _return_state(self, received_ids: Set[int]) -> Optional[Tuple[State, int]]:
+    def _return_state(self: State, received_ids: Set[int]) -> Optional[Tuple[State, int]]:
         worker_id = get_worker_id()
         assert worker_id is not None
         if worker_id in received_ids:
             return None
-        return (self, worker_id)
+        return (self.__return_state__(), worker_id)
 
     def get_states(self) -> List[State]:
         if self._pool._state == mp.pool.TERMINATE:  # type: ignore[union-attr]
             raise ValueError("Pool is already terminated")
         if isinstance(self._pool, DummyPool):
-            return [self._pool._process_state]  # type: ignore[list-item]
+            return [self._pool._process_state.__return_state__()]  # type: ignore[union-attr]
         assert isinstance(self._pool, Pool)
         received_ids: Set[int] = set()
         states = []
@@ -418,6 +427,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
         log("Gracefully shutting down...", "warning", force_console=True)
         print("Press Ctrl-C again to force terminate...")
         try:
+            pool.close()
             pool.join()
         except KeyboardInterrupt:
             pass

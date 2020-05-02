@@ -1,4 +1,5 @@
 import functools
+import itertools
 import multiprocessing as mp
 import operator
 import os
@@ -72,6 +73,9 @@ class PoolState2(flutes.PoolState):
     def __init__(self):
         self.numbers: List[int] = []
 
+    def __return_state__(self):
+        return self.numbers
+
     def generate(self, start: int, stop: int) -> None:
         for x in range(start, stop):
             self.numbers.append(x)
@@ -83,7 +87,7 @@ def test_stateful_pool_get_state() -> None:
             intervals = list(range(0, 100 + 1, 5))
             pool.starmap(PoolState2.generate, zip(intervals, intervals[1:]))
             states = pool.get_states()
-            assert sorted(x for state in states for x in state.numbers) == list(range(100))
+            assert sorted(itertools.chain.from_iterable(states)) == list(range(100))  # type: ignore[arg-type]
 
 
 def test_pool_methods() -> None:

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `progress_open` method now takes an `bar_fn` argument that allows overriding the progress bar creation process, useful
   for working with `ProgressBarManager`.
+- `__return_state__` method for `PoolState` which allows customizing the returned pool state when `pool.get_states()` is
+  called.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
