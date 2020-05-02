@@ -571,9 +571,9 @@ class ProgressBarManager:
                 length = None
                 try:
                     length = len(iterable)
+                    kwargs.update(total=length)
                 except TypeError:
                     pass
-                kwargs.update(total=length)
             self.queue.put_nowait(NewEvent(get_worker_id(), kwargs))
             if iterable is not None:
                 return self._iter(iterable)
@@ -646,7 +646,7 @@ class ProgressBarManager:
                     assert False
             except (KeyboardInterrupt, SystemExit):
                 raise
-            except EOFError:
+            except (EOFError, BrokenPipeError):
                 break
             except:
                 traceback.print_exc(file=sys.stderr)
