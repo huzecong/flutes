@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - The progress bar is now force-refreshed when `update` is called with `n == 0` and `postfix` specified.
     - The event loop is now `break`-ed on `BrokenPipeError`, to prevent the thread from out-living the main process,
       which might happen when `KeyboardInterrupt` is raised.
+    - Restore the console logging function when `close` is called.
 
 ## [0.2.0] - 2020-04-20
 ### Added

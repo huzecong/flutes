@@ -172,6 +172,10 @@ def set_logging_level(level: str, console: bool = True, file: bool = True) -> No
         LOGGER.setLevel(LEVEL_MAP[level])
 
 
+def _get_console_logging_function():
+    return _CONSOLE_LOG_FN
+
+
 def set_console_logging_function(log_fn: Callable[[str], None]) -> None:
     r"""Set the console logging function **for current process only**."""
     global _CONSOLE_LOG_FN

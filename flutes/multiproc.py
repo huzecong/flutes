@@ -612,7 +612,8 @@ class ProgressBarManager:
         self.thread.start()
         self._proxy = self.Proxy(self.queue)
 
-        from .log import set_console_logging_function
+        from .log import set_console_logging_function, _get_console_logging_function
+        self._original_console_logging_fn = _get_console_logging_function()
         set_console_logging_function(self.proxy.write)
 
     @property
@@ -662,3 +663,5 @@ class ProgressBarManager:
         self.thread.join()
         for bar in self.progress_bars.values():
             bar.close()
+        from .log import set_console_logging_function
+        set_console_logging_function(self._original_console_logging_fn)

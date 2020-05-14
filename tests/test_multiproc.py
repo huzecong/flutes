@@ -138,3 +138,4 @@ def test_ProgressBarManager() -> None:
             pool.map(fn, range(10))
             fn = functools.partial(file_progress_bar_fn, bar=manager.proxy)
             pool.map(fn, range(4))
+    flutes.log("This should still show up", force_console=True)
