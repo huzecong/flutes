@@ -3,6 +3,7 @@ import inspect
 import subprocess
 import sys
 import traceback
+from bdb import BdbQuit
 from typing import Optional
 
 from .log import log
@@ -19,13 +20,13 @@ def register_ipython_excepthook() -> None:
     """
 
     def excepthook(type, value, traceback):
-        if type is KeyboardInterrupt:
-            # don't capture keyboard interrupts (Ctrl+C)
+        if type is KeyboardInterrupt or type is BdbQuit:
+            # Don't capture keyboard interrupts (Ctrl+C) or Python debugger exit events.
             sys.__excepthook__(type, value, traceback)
         else:
             ipython_hook(type, value, traceback)
 
-    # enter IPython debugger on exception
+    # Enter IPython debugger on exception.
     from IPython.core import ultratb
 
     ipython_hook = ultratb.FormattedTB(mode='Context', color_scheme='Linux', call_pdb=1)
