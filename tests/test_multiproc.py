@@ -1,7 +1,6 @@
 import functools
 import itertools
 import multiprocessing as mp
-import operator
 import os
 import tempfile
 import time
@@ -14,8 +13,12 @@ import flutes
 from .utils import check_iterator
 
 
-def sqr(x: int) -> int:
-    return x * x
+def sqr(x: int, coef: int = 1, *, coef2: int = 1) -> int:
+    return x * x * coef * coef2
+
+
+def mul(x: int, y: int, coef: int = 1, *, coef2: int = 1) -> int:
+    return x * y * coef * coef2
 
 
 def test_safe_pool() -> None:
@@ -26,14 +29,14 @@ def test_safe_pool() -> None:
 
     file_obj = MagicMock()
     with flutes.safe_pool(0, closing=[file_obj]) as pool:
-        assert type(pool) is not pool_type
+        assert not isinstance(pool, pool_type)
         check_iterator(pool.imap(sqr, seq), target)
     file_obj.assert_called_once()
 
     file_obj = NonCallableMagicMock()
     file_obj.mock_add_spec(["close"])
     with flutes.safe_pool(2, closing=[file_obj]) as pool:
-        assert type(pool) is pool_type
+        assert isinstance(pool, pool_type)
         check_iterator(pool.imap(sqr, seq), target)
         raise ValueError  # should swallow exceptions
     file_obj.close.assert_called_once()
@@ -92,18 +95,25 @@ def test_stateful_pool_get_state() -> None:
 
 def test_pool_methods() -> None:
     seq = list(range(10000))
-    target = list(map(sqr, seq))  # sequential
+    args = (2,)
+    kwds = {"coef2": 3}
+    target = [sqr(x, *args, **kwds) for x in seq]  # sequential
     for n_procs in [0, 2]:
         for state_class in [PoolState, None]:
             with flutes.safe_pool(n_procs, state_class=state_class, init_args=(None,)) as pool:
-                check_iterator(pool.map(sqr, seq), target)
-                check_iterator(pool.imap(sqr, seq), target)
-                check_iterator(sorted(pool.imap_unordered(sqr, seq)), target)
-                check_iterator(pool.starmap(operator.mul, zip(seq, seq)), target)
-                check_iterator(pool.map_async(sqr, seq).get(), target)
-                check_iterator(pool.starmap_async(operator.mul, zip(seq, seq)).get(), target)
-                assert pool.apply(sqr, (10,)) == 100
-                assert pool.apply_async(sqr, (10,)).get() == 100
+                map_result = pool.map(sqr, seq, args=args, kwds=kwds)
+                imap_result = pool.imap(sqr, seq, args=args, kwds=kwds)
+                imap_unordered_result = sorted(pool.imap_unordered(sqr, seq, args=args, kwds=kwds))
+                starmap_result = pool.starmap(mul, zip(seq, seq), args=args, kwds=kwds)
+                map_async_result = pool.map_async(sqr, seq, args=args, kwds=kwds).get()
+                starmap_async_result = pool.starmap_async(mul, zip(seq, seq), args=args, kwds=kwds).get()
+                apply_result = pool.apply(sqr, (10, 2), kwds=kwds)
+                apply_async_result = pool.apply_async(sqr, (10, 2), kwds=kwds).get()
+            for result in [map_result, imap_result, imap_unordered_result, starmap_result, map_async_result,
+                           starmap_async_result]:
+                check_iterator(result, target)
+            for result in [apply_result, apply_async_result]:
+                assert result == 100 * 2 * 3
 
 
 def progress_bar_fn(idx: int, bar) -> None:

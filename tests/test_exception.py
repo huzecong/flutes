@@ -15,7 +15,7 @@ def test_exception_wrapper() -> None:
 
         return wrapped
 
-    @dummy_decorator
+    @dummy_decorator  # check that it works with properly wrapped decorators
     def handler_fn(e, three, one, args, my_arg=None, **kw):
         assert isinstance(e, ValueError)
         assert str(e) == "test"

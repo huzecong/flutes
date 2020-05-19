@@ -6,11 +6,11 @@ import sys
 import threading
 import traceback
 import types
-from collections import defaultdict
 from multiprocessing.pool import Pool
+from collections import defaultdict
 from types import FrameType
 from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type,
-                    TypeVar, Union, cast, no_type_check, overload)
+                    TypeVar, Union, cast, no_type_check, overload, Mapping)
 
 from tqdm import tqdm
 from typing_extensions import Literal
@@ -66,36 +66,30 @@ class DummyPool:
 
         self._state = mp.pool.RUN
 
-    def imap(self, fn: Callable[[T], R], iterable: Iterable[T], *_, **__) -> Iterator[R]:
+    def imap(self, fn: Callable[[T], R], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> Iterator[R]:
         if self._process_state is not None:
             locals().update({"__state__": self._process_state})
-        yield from map(fn, iterable)
+        for x in iterable:
+            yield fn(x, *args, **kwds)
 
-    def imap_unordered(self, fn: Callable[[T], R], iterable: Iterable[T], *_, **__) -> Iterator[R]:
-        if self._process_state is not None:
-            locals().update({"__state__": self._process_state})
-        yield from map(fn, iterable)
+    def imap_unordered(self, fn: Callable[[T], R], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> Iterator[R]:
+        return self.imap(fn, iterable, args=args, kwds=kwds)
 
-    def map(self, fn: Callable[[T], R], iterable: Iterable[T], *_, **__) -> List[R]:
-        if self._process_state is not None:
-            locals().update({"__state__": self._process_state})
-        return [fn(x) for x in iterable]
+    def map(self, fn: Callable[[T], R], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> List[R]:
+        return list(self.imap(fn, iterable, args=args, kwds=kwds))
 
-    def map_async(self, fn: Callable[[T], R], iterable: Iterable[T], *_, **__) -> 'mp.pool.ApplyResult[List[R]]':
-        if self._process_state is not None:
-            locals().update({"__state__": self._process_state})
-        return DummyApplyResult(self.map(fn, iterable))
-
-    def starmap(self, fn: Callable[..., R], iterable: Iterable[Tuple[T, ...]], *_, **__) -> List[R]:
-        if self._process_state is not None:
-            locals().update({"__state__": self._process_state})
-        return [fn(*x) for x in iterable]
-
-    def starmap_async(self, fn: Callable[..., R], iterable: Iterable[Tuple[T, ...]], *_, **__) \
+    def map_async(self, fn: Callable[[T], R], iterable: Iterable[T], *_, args=(), kwds={}, **__) \
             -> 'mp.pool.ApplyResult[List[R]]':
+        return DummyApplyResult(self.map(fn, iterable, args=args, kwds=kwds))
+
+    def starmap(self, fn: Callable[..., R], iterable: Iterable[Tuple[T, ...]], *_, args=(), kwds={}, **__) -> List[R]:
         if self._process_state is not None:
             locals().update({"__state__": self._process_state})
-        return DummyApplyResult(self.starmap(fn, iterable))
+        return [fn(*x, *args, **kwds) for x in iterable]
+
+    def starmap_async(self, fn: Callable[..., R], iterable: Iterable[Tuple[T, ...]], *_, args=(), kwds={}, **__) \
+            -> 'mp.pool.ApplyResult[List[R]]':
+        return DummyApplyResult(self.starmap(fn, iterable, args=args, kwds=kwds))
 
     def apply(self, fn: Callable[..., R], args: Iterable[Any] = (), kwds: Dict[str, Any] = {}, *_, **__) -> R:
         if self._process_state is not None:
@@ -104,8 +98,6 @@ class DummyPool:
 
     def apply_async(self, fn: Callable[..., R], args: Iterable[Any] = (), kwds: Dict[str, Any] = {}, *_, **__) \
             -> 'mp.pool.ApplyResult[R]':
-        if self._process_state is not None:
-            locals().update({"__state__": self._process_state})
         return DummyApplyResult(self.apply(fn, args, kwds))
 
     @staticmethod
@@ -120,9 +112,6 @@ class DummyPool:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._state = mp.pool.TERMINATE
-
-
-PoolType = Union[Pool, DummyPool]
 
 
 def get_worker_id() -> Optional[int]:
@@ -185,6 +174,7 @@ class PoolState:
 
     **See also:** :func:`safe_pool`
     """
+
     # Dummy base class for pool processor states.
 
     def __return_state__(self):
@@ -207,7 +197,7 @@ def _pool_state_init(state_class: Type[PoolState], *args, **kwargs) -> None:
     del local_vars
 
 
-def _pool_fn_with_state(fn: Callable[..., R], *args, **kwargs) -> R:
+def _pool_fn_with_state(fn: Callable[..., R], *args, **kwds) -> R:
     # Wrapper for compute function passed to stateful pools.
     frame = cast(FrameType, inspect.currentframe().f_back)  # type: ignore[union-attr]
     if '__state__' not in frame.f_locals:  # in DummyPool we have only one layer on the stack
@@ -215,7 +205,7 @@ def _pool_fn_with_state(fn: Callable[..., R], *args, **kwargs) -> R:
     local_vars = frame.f_locals
     state_obj = local_vars['__state__']
     del frame, local_vars
-    return fn(state_obj, *args, **kwargs)
+    return fn(state_obj, *args, **kwds)
 
 
 def _chain_fns(fns: List[Callable[..., R]], fn_arg_kwargs: List[Tuple[Tuple[Any, ...], Dict[str, Any]]]) -> List[R]:
@@ -228,12 +218,43 @@ def _chain_fns(fns: List[Callable[..., R]], fn_arg_kwargs: List[Tuple[Tuple[Any,
 State = TypeVar('State', bound=PoolState)
 
 
-class StatefulPoolWrapper(Generic[State]):
-    _pool: PoolType
+class FuncWrapper:
+    def __init__(self, fn: Callable[..., R], args: Iterable[Any], kwds: Mapping[str, Any]):
+        self.fn = fn
+        self.args = args
+        self.kwds = kwds
+
+    def __call__(self, *args):
+        return self.fn(*args, *self.args, **self.kwds)
+
+
+class PoolWrapper(mp.pool.Pool):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Patch every method except `apply` and `apply_async`.
+        for name in ["imap", "imap_unordered", "map", "map_async", "starmap", "starmap_async"]:
+            pool_method = getattr(self, name)
+            wrapped_method = self._define_method(pool_method)
+            setattr(self, name, wrapped_method)
+
+    @staticmethod
+    def _define_method(pool_method: Callable[..., R]) -> Callable[..., R]:
+        @functools.wraps(pool_method)
+        def wrapped_method(func, *_, args=(), kwds={}, **__):
+            if len(args) > 0 or len(kwds) > 0:
+                func = FuncWrapper(func, args, kwds)
+            return pool_method(func, *_, **__)
+
+        return wrapped_method
+
+
+class StatefulPool(Generic[State]):
+    _pool: 'PoolType'
     _state_class: Type[State]
     _class_methods: Set[int]  # a list of addresses of instance methods for the state class
 
-    def __init__(self, pool_class: Type[PoolType], state_class: Type[State], state_init_args: Tuple[Any, ...],
+    def __init__(self, pool_class: Type['PoolType'], state_class: Type[State], state_init_args: Tuple[Any, ...],
                  args: Tuple[Any, ...], kwargs: Dict[str, Any]):
         self._state_class = state_class
 
@@ -274,8 +295,7 @@ class StatefulPoolWrapper(Generic[State]):
 
         self._pool = pool_class(*args, **kwargs)
 
-        methods = ["imap", "imap_unordered", "map", "map_async", "starmap", "starmap_async", "apply", "apply_async"]
-        for name in methods:
+        for name in ["imap", "imap_unordered", "map", "map_async", "starmap", "starmap_async", "apply", "apply_async"]:
             pool_method = getattr(self._pool, name)
             wrapped_method = self._define_method(pool_method)
             setattr(self, name, wrapped_method)
@@ -331,23 +351,58 @@ class StatefulPoolWrapper(Generic[State]):
         return getattr(self._pool, item)
 
 
-class StatefulPoolType(Pool, Generic[State]):
-    # Stub for stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
+class PoolType(Pool):
+    # Stub for non-stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
 
     def imap(self,  # type: ignore[override]
-             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1) -> Iterator[R]: ...
+             fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
+             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
     def imap_unordered(self,  # type: ignore[override]
-                       fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1) -> Iterator[R]: ...
+                       fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
+                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
     def map(self,  # type: ignore[override]
-            fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None) -> List[R]: ...
+            fn: Callable[[T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
+            *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+
+    def map_async(self,  # type: ignore[override]
+                  fn: Callable[[T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
+                  callback: Optional[Callable[[T], None]] = None,
+                  error_callback: Optional[Callable[[BaseException], None]] = None,
+                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
+
+    def starmap(self,  # type: ignore[override]
+                fn: Callable[..., R], iterable: Iterable[Iterable[Any]], chunksize: Optional[int] = None,
+                *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+
+    def starmap_async(self,  # type: ignore[override]
+                      fn: Callable[..., R], iterable: Iterable[Iterable[Any]], chunksize: Optional[int] = None,
+                      callback: Optional[Callable[[T], None]] = None,
+                      error_callback: Optional[Callable[[BaseException], None]] = None,
+                      *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
+
+
+class StatefulPoolType(PoolType, Generic[State]):
+    # Stub for stateful pool. Uninherited functions share the same signature as stubs for `PoolType`.
+
+    def imap(self,  # type: ignore[override]
+             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
+             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+
+    def imap_unordered(self,  # type: ignore[override]
+                       fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
+                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+
+    def map(self,  # type: ignore[override]
+            fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
+            *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
 
     def map_async(self,  # type: ignore[override]
                   fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
                   callback: Optional[Callable[[T], None]] = None,
-                  error_callback: Optional[Callable[[BaseException], None]] = None) \
-            -> 'mp.pool.ApplyResult[List[R]]': ...
+                  error_callback: Optional[Callable[[BaseException], None]] = None,
+                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
 
     def get_states(self) -> List[State]: ...
 
@@ -359,7 +414,7 @@ def safe_pool(processes: int, *args, state_class: Type[State], init_args: Tuple[
 
 @overload
 def safe_pool(processes: int, *args, state_class: Literal[None] = None,
-              closing: Optional[List[Any]] = None, **kwargs) -> Pool: ...
+              closing: Optional[List[Any]] = None, **kwargs) -> PoolType: ...
 
 
 @contextlib.contextmanager  # type: ignore[misc]
@@ -370,6 +425,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
     - Stateful processes: Functions run in the pool will have access to a mutable state class. See :class:`PoolState`
       for details.
     - Handles exceptions gracefully.
+    - All pool methods support ``args`` and ``kwds``, which allows passing arguments to the called function.
 
     :param processes: The number of worker processes to run. A value of 0 means sequential execution in the current
         process.
@@ -406,11 +462,11 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
     if processes == 0:
         pool_class = DummyPool
     else:
-        pool_class = mp.Pool
+        pool_class = PoolWrapper
 
     args = (processes,) + args
     if state_class is not None:
-        pool = StatefulPoolWrapper(pool_class, state_class, init_args, args, kwargs)
+        pool = StatefulPool(pool_class, state_class, init_args, args, kwargs)
     else:
         pool = pool_class(*args, **kwargs)
 
