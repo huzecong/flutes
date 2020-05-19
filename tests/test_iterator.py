@@ -11,6 +11,20 @@ def test_chunk() -> None:
                    [[0, 1, 2, 3, 4]])
 
 
+def test_take() -> None:
+    check_iterator(flutes.take(5, range(10000000)),
+                   [0, 1, 2, 3, 4])
+    check_iterator(flutes.take(5, range(2)),
+                   [0, 1])
+
+
+def test_drop() -> None:
+    check_iterator(flutes.drop(5, range(10)),
+                   [5, 6, 7, 8, 9])
+    check_iterator(flutes.drop(5, range(2)),  # type: ignore[misc]
+                   [])
+
+
 def test_drop_until() -> None:
     check_iterator(flutes.drop_until(lambda x: x > 5, range(10)),
                    [6, 7, 8, 9])

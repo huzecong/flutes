@@ -3,6 +3,8 @@ from typing import Callable, Generic, Iterable, Iterator, List, Optional, Sequen
 
 __all__ = [
     "chunk",
+    "take",
+    "drop",
     "drop_until",
     "split_by",
     "scanl",
@@ -40,6 +42,51 @@ def chunk(n: int, iterable: Iterable[T]) -> Iterator[List[T]]:
             group = []
     if len(group) > 0:
         yield group
+
+
+def take(n: int, iterable: Iterable[T]) -> Iterator[T]:
+    r"""Take the first :attr:`n` elements from an iterable.
+
+    .. code:: python
+
+        >>> list(take(5, range(1000000)))
+        [0, 1, 2, 3, 4]
+
+    :param n: The number of elements to take.
+    :param iterable: The iterable.
+    :return: An iterator returning the first :attr:`n` elements from the iterable.
+    """
+    if n < 0:
+        raise ValueError("`n` should be non-negative")
+    try:
+        it = iter(iterable)
+        for _ in range(n):
+            yield next(it)
+    except StopIteration:
+        pass
+
+
+def drop(n: int, iterable: Iterable[T]) -> Iterator[T]:
+    r"""Drop the first :attr:`n` elements from an iterable, and return the rest as an iterator.
+
+    .. code:: python
+
+        >>> next(drop(5, range(1000000)))
+        5
+
+    :param n: The number of elements to drop.
+    :param iterable: The iterable.
+    :return: An iterator returning the remaining part of the iterable after the first :attr:`n` elements.
+    """
+    if n < 0:
+        raise ValueError("`n` should be non-negative")
+    try:
+        it = iter(iterable)
+        for _ in range(n):
+            next(it)
+        yield from it
+    except StopIteration:
+        pass
 
 
 def drop_until(pred_fn: Callable[[T], bool], iterable: Iterable[T]) -> Iterator[T]:

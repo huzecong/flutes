@@ -10,14 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for working with `ProgressBarManager`.
 - `__return_state__` method for `PoolState` which allows customizing the returned pool state when `pool.get_states()` is
   called.
+- `safe_pool`:
+    - All pool methods of all pool instances now supports keyword-only arguments `args` and `kwds`, which allows passing
+      arguments to the called function in the same way as in `apply`.
+- `take` and `drop` iterator methods.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
 - `safe_pool`:
     - Fixed bug where the `processes` argument was not passed to the `multiprocessing.Pool` constructor. As a result,
       pools are always using the maximum number of processes if `processes != 0`.
-    - All pool methods of all pool instances now supports keyword-only arguments `args` and `kwds`, which allows passing
-      arguments to the called function in the same way as in `apply`.
 - `ProgressBarManager`:
     - `Proxy.iter` is merged into `Proxy.new`; `Proxy.new` now returns itself if `iterable` is not specified.
     - Additional dummy methods are added to `Proxy` to imitate the behavior of `tqdm`.
