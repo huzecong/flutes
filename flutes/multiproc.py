@@ -70,7 +70,7 @@ class DummyPool:
         if self._process_state is not None:
             locals().update({"__state__": self._process_state})
         for x in iterable:
-            yield fn(x, *args, **kwds)
+            yield fn(x, *args, **kwds)  # type: ignore[call-arg]
 
     def imap_unordered(self, fn: Callable[[T], R], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> Iterator[R]:
         return self.imap(fn, iterable, args=args, kwds=kwds)
@@ -332,10 +332,10 @@ class StatefulPool(Generic[State]):
         return (self.__return_state__(), worker_id)
 
     def get_states(self) -> List[State]:
-        if self._pool._state == mp.pool.TERMINATE:  # type: ignore[union-attr]
+        if self._pool._state == mp.pool.TERMINATE:
             raise ValueError("Pool is already terminated")
         if isinstance(self._pool, DummyPool):
-            return [self._pool._process_state.__return_state__()]  # type: ignore[union-attr]
+            return [self._pool._process_state.__return_state__()]
         assert isinstance(self._pool, Pool)
         received_ids: Set[int] = set()
         states = []
@@ -353,6 +353,7 @@ class StatefulPool(Generic[State]):
 
 class PoolType(Pool):
     # Stub for non-stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
+    _state: str
 
     def imap(self,  # type: ignore[override]
              fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
