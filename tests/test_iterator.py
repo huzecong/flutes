@@ -1,5 +1,7 @@
 import operator
 
+import pytest
+
 import flutes
 from .utils import check_iterator
 
@@ -58,6 +60,8 @@ def test_LazyList() -> None:
     assert l[-2] == 98
 
     l = flutes.LazyList(range(100))
+    with pytest.raises(TypeError, match="__len__"):
+        len(l)
     for i, x in enumerate(l):
         assert i == x
     assert len(l) == 100

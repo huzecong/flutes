@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Restore the console logging function when `close` is called.
 - `register_ipython_excepthook` now ignores the `BdbQuit` exception raised when exiting from the Python debugger. The
   excepthook will not be triggered when the user exits the debugger from an explicitly set breakpoint.
+- `LazyList` now raises `TypeError` if `__len__` is called before the underlying iterable is depleted. This is to
+  behave like an iterator to preserve laziness, as certain libraries (e.g., `tqdm`) checks whether an iterable is a list
+  and handles things differently.
 
 ## [0.2.0] - 2020-04-20
 ### Added

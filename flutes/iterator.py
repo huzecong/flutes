@@ -286,8 +286,10 @@ class LazyList(Generic[T], Sequence[T]):
         return self.list[idx]
 
     def __len__(self):
-        self._fetch_until(None)
-        return len(self.list)
+        if self.exhausted:
+            return len(self.list)
+        else:
+            raise TypeError("__len__ is not available before the iterable is depleted")
 
 
 class Range(Sequence[int]):
