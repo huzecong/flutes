@@ -104,6 +104,10 @@ class DummyPool:
     def _no_op(self, *args, **kwargs):
         pass
 
+    def _check_running(self):
+        if self._state != mp.pool.RUN:
+            raise ValueError("Pool not running")
+
     def __getattr__(self, item):
         return types.MethodType(DummyPool._no_op, self)  # no-op for everything else
 
@@ -174,8 +178,6 @@ class PoolState:
 
     **See also:** :func:`safe_pool`
     """
-
-    # Dummy base class for pool processor states.
 
     def __return_state__(self):
         r"""When ``pool.get_states()`` is invoked, this method is called for each pool worker to return its state. The
@@ -264,7 +266,6 @@ class StatefulPool(Generic[State]):
             attr_val = getattr(self._state_class, attr_name)
             if inspect.isfunction(attr_val):
                 self._class_methods.add(id(attr_val))
-        self._class_methods.add(id(self._return_state))  # add special method
 
         def get_arg(pos: int, name: str, default=None):
             if len(args) > pos + 1:
@@ -301,7 +302,7 @@ class StatefulPool(Generic[State]):
             setattr(self, name, wrapped_method)
 
     @no_type_check
-    def _wrap_fn(self, func: Callable[[State, T], R]) -> Callable[[T], R]:
+    def _wrap_fn(self, func: Callable[[State, T], R], allow_function: bool = True) -> Callable[[T], R]:
         # If the function is a `PoolState` method, wrap it to allow access to `self`.
         if id(func) in self._class_methods:
             return functools.partial(_pool_fn_with_state, func)
@@ -309,6 +310,8 @@ class StatefulPool(Generic[State]):
             if func.__self__.__class__ is self._state_class:
                 raise ValueError(f"Bound methods of the pool state class {self._state_class.__name__} are not "
                                  f"accepted; use an unbound method instead.")
+        if not allow_function:
+            raise ValueError(f"Only unbound methods of the pool state class {self._state_class.__name__} are accepted")
         if inspect.isfunction(func):
             args = inspect.getfullargspec(func)
             if len(args.args) > 0 and args.args[0] == "self":
@@ -324,28 +327,60 @@ class StatefulPool(Generic[State]):
         return wrapped_method
 
     @staticmethod
-    def _return_state(self: State, received_ids: Set[int]) -> Optional[Tuple[State, int]]:
-        worker_id = get_worker_id()
-        assert worker_id is not None
-        if worker_id in received_ids:
+    def _init_broadcast(self: State, _dummy: int) -> int:
+        self.__broadcasted__ = False
+        return get_worker_id()
+
+    @staticmethod
+    def _apply_broadcast(self: State, broadcast_fn: Callable[[State], R], *args, **kwds) -> Optional[Tuple[R, int]]:
+        if self.__broadcasted__:
             return None
-        return (self.__return_state__(), worker_id)
+        self.__broadcasted__ = True
+        worker_id = get_worker_id()
+        result = broadcast_fn(self, *args, **kwds)
+        return (result, worker_id)
 
     def get_states(self) -> List[State]:
-        if self._pool._state == mp.pool.TERMINATE:
-            raise ValueError("Pool is already terminated")
+        r"""Return the states of each pool worker.
+
+        :return: A list of state for each worker process. Order is arbitrary.
+        """
+        return self.broadcast(self._state_class.__return_state__)
+
+    def broadcast(self, fn: Callable[[State], R], *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]:
+        r"""Broadcast a function to each pool worker, and gather results.
+
+        :param fn: The function to broadcast
+        :param args: Positional arguments to apply to the function.
+        :param kwds: Keyword arguments to apply to the function.
+        :return: The broadcast result from each worker process. Order is arbitrary.
+        """
+        self._pool._check_running()
+        _ = self._wrap_fn(fn, allow_function=False)  # ensure that the function is an unbound method
         if isinstance(self._pool, DummyPool):
-            return [self._pool._process_state.__return_state__()]
+            return [fn(self._pool._process_state, *args, **kwds)]
         assert isinstance(self._pool, Pool)
+
+        # Initialize the worker states.
         received_ids: Set[int] = set()
-        states = []
-        while len(received_ids) < self._pool._processes:  # type: ignore[attr-defined]
-            result = self.apply(self._return_state, (received_ids,))
-            if result is not None:
-                state, worker_id = result
-                received_ids.add(worker_id)
-                states.append(state)
-        return states
+        n_processes = self._pool._processes
+        broadcast_init_fn = functools.partial(_pool_fn_with_state, self._init_broadcast)
+        while len(received_ids) < n_processes:
+            results = self._pool.map(broadcast_init_fn, range(n_processes))
+            received_ids.update(results)
+
+        # Perform broadcast.
+        received_ids = set()
+        broadcast_results = []
+        broadcast_handler_fn = functools.partial(_pool_fn_with_state, self._apply_broadcast)
+        while len(received_ids) < n_processes:  # type: ignore[attr-defined]
+            results = self._pool.map(broadcast_handler_fn, [fn] * n_processes, args=args, kwds=kwds)
+            for result in results:
+                if result is not None:
+                    ret, worker_id = result
+                    received_ids.add(worker_id)
+                    broadcast_results.append(ret)
+        return broadcast_results
 
     def __getattr__(self, item):
         return getattr(self._pool, item)
