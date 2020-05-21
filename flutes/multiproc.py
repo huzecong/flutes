@@ -104,10 +104,6 @@ class DummyPool:
     def _no_op(self, *args, **kwargs):
         pass
 
-    def _check_running(self):
-        if self._state != mp.pool.RUN:
-            raise ValueError("Pool not running")
-
     def __getattr__(self, item):
         return types.MethodType(DummyPool._no_op, self)  # no-op for everything else
 
@@ -178,6 +174,7 @@ class PoolState:
 
     **See also:** :func:`safe_pool`
     """
+    __broadcasted__: bool
 
     def __return_state__(self):
         r"""When ``pool.get_states()`` is invoked, this method is called for each pool worker to return its state. The
@@ -329,7 +326,9 @@ class StatefulPool(Generic[State]):
     @staticmethod
     def _init_broadcast(self: State, _dummy: int) -> int:
         self.__broadcasted__ = False
-        return get_worker_id()
+        worker_id = get_worker_id()
+        assert worker_id is not None
+        return worker_id
 
     @staticmethod
     def _apply_broadcast(self: State, broadcast_fn: Callable[[State], R], *args, **kwds) -> Optional[Tuple[R, int]]:
@@ -337,7 +336,8 @@ class StatefulPool(Generic[State]):
             return None
         self.__broadcasted__ = True
         worker_id = get_worker_id()
-        result = broadcast_fn(self, *args, **kwds)
+        assert worker_id is not None
+        result = broadcast_fn(self, *args, **kwds)  # type: ignore[call-arg]
         return (result, worker_id)
 
     def get_states(self) -> List[State]:
@@ -355,7 +355,8 @@ class StatefulPool(Generic[State]):
         :param kwds: Keyword arguments to apply to the function.
         :return: The broadcast result from each worker process. Order is arbitrary.
         """
-        self._pool._check_running()
+        if self._pool._state != mp.pool.RUN:
+            raise ValueError("Pool not running")
         _ = self._wrap_fn(fn, allow_function=False)  # ensure that the function is an unbound method
         if isinstance(self._pool, DummyPool):
             return [fn(self._pool._process_state, *args, **kwds)]
@@ -366,15 +367,16 @@ class StatefulPool(Generic[State]):
         n_processes = self._pool._processes
         broadcast_init_fn = functools.partial(_pool_fn_with_state, self._init_broadcast)
         while len(received_ids) < n_processes:
-            results = self._pool.map(broadcast_init_fn, range(n_processes))
-            received_ids.update(results)
+            init_ids: List[int] = self._pool.map(broadcast_init_fn, range(n_processes))  # type: ignore[arg-type]
+            received_ids.update(init_ids)
 
         # Perform broadcast.
-        received_ids = set()
+        received_ids: Set[int] = set()
         broadcast_results = []
         broadcast_handler_fn = functools.partial(_pool_fn_with_state, self._apply_broadcast)
-        while len(received_ids) < n_processes:  # type: ignore[attr-defined]
-            results = self._pool.map(broadcast_handler_fn, [fn] * n_processes, args=args, kwds=kwds)
+        while len(received_ids) < n_processes:
+            results: List[Optional[Tuple[R, int]]] = self._pool.map(
+                broadcast_handler_fn, [fn] * n_processes, args=args, kwds=kwds)  # type: ignore[arg-type]
             for result in results:
                 if result is not None:
                     ret, worker_id = result
@@ -388,7 +390,8 @@ class StatefulPool(Generic[State]):
 
 class PoolType(Pool):
     # Stub for non-stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
-    _state: str
+    _state: int
+    _processes: int
 
     def imap(self,  # type: ignore[override]
              fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
