@@ -39,9 +39,8 @@ def main() -> None:
         with flutes.safe_pool(processes=4, state_class=WordCounter) as pool_stateful:
             for _ in pool_stateful.imap_unordered(WordCounter.count_words, sentences, chunksize=1000):
                 pass
-        parallel_word_counter: CounterT[str] = Counter()
-        with flutes.work_in_progress("Get states"):
             states = pool_stateful.get_states()
+        parallel_word_counter: CounterT[str] = Counter()
         for state in states:
             parallel_word_counter.update(state.word_cnt)
 
