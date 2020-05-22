@@ -448,6 +448,9 @@ class StatefulPoolType(PoolType, Generic[State]):
 
     def get_states(self) -> List[State]: ...
 
+    def broadcast(self, fn: Callable[[State], R],
+                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+
 
 @overload
 def safe_pool(processes: int, *args, state_class: Type[State], init_args: Tuple[Any, ...] = (),
