@@ -769,6 +769,9 @@ class ProgressBarManager:
             self.close()
 
     class DummyProxy(Proxy):
+        def __init__(self):
+            pass
+
         def new(self, iterable=None, **kwargs):
             if iterable is not None:
                 return iterable
@@ -786,11 +789,11 @@ class ProgressBarManager:
     def __init__(self, verbose: bool = True, **kwargs):
         self.verbose = verbose
         if not verbose:
-            self._proxy = self.DummyProxy(None)
+            self._proxy: 'ProgressBarManager.Proxy' = self.DummyProxy()
             return
 
         self.manager = mp.Manager()
-        self.queue: 'mp.Queue[Event]' = self.manager.Queue(-1)
+        self.queue: 'mp.Queue[Event]' = self.manager.Queue(-1)  # type: ignore[assignment]
         self.progress_bars: Dict[Optional[int], tqdm] = {}
         self.worker_id_map: Dict[Optional[int], int] = defaultdict(lambda: len(self.worker_id_map))
         self.bar_kwargs = kwargs.copy()

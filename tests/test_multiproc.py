@@ -153,6 +153,8 @@ def test_ProgressBarManager() -> None:
 
 
 def test_ProgressBarManager_increment_correct() -> None:
+    call_count = progress = 0
+
     def update(value: int):
         nonlocal call_count, progress
         call_count += 1
@@ -162,7 +164,6 @@ def test_ProgressBarManager_increment_correct() -> None:
     proxy = manager.proxy
     proxy.update = update
 
-    call_count = progress = 0
     for _ in proxy.new(list(range(10000)), update_frequency=0.02):
         pass
     assert call_count == int(1.0 / 0.02) and progress == 10000
