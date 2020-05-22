@@ -136,13 +136,22 @@ def set_log_file(path: PathType, fmt: str = "%(asctime)s %(levelname)s: %(messag
     LOGGER.addHandler(handler)
 
 
-def log(msg: str, level: str = "info", force_console: bool = False, include_proc_id: bool = True) -> None:
+def log(msg: str, level: str = "info", force_console: bool = False,
+        timestamp: bool = True, include_proc_id: bool = True) -> None:
     r"""Write a line of log with the specified logging level.
 
     :param msg: Message to log.
-    :param level: Logging level. Available options are ``success``, ``warning``, ``error``, and ``info``.
-    :param force_console: If ``True``, will write to console regardless of logging level setting.
-    :param include_proc_id: If ``True``, will include the process ID for multiprocessing pool workers.
+    :param level: Logging level. Available options are ``success``, ``warning``, ``error``, and ``info``. Defaults to
+        ``info``.
+    :param force_console: If ``True``, will write to console regardless of logging level setting. Defaults to ``False``.
+    :param timestamp: If ``True``, will add a timestamp to the console logging output. Defaults to ``True``.
+
+        ..note::
+            The logging level colors apply to the timestamp only, so if :attr:`timestamp` is set to ``False``, then
+            it's not possible to differentiate between different logging levels under console.
+
+    :param include_proc_id: If ``True``, will include the process ID for multiprocessing pool workers. Defaults to
+        ``True``.
     """
     if level not in LOGGING_MAP:
         raise ValueError(f"Incorrect logging level '{level}'")
@@ -151,8 +160,11 @@ def log(msg: str, level: str = "info", force_console: bool = False, include_proc
         if worker_id is not None:
             msg = f"(Worker {worker_id:2d}) {msg}"
     if force_console or LEVEL_MAP[level] >= _CONSOLE_LOGGING_LEVEL.value:
-        time_str = time.strftime("[%Y-%m-%d %H:%M:%S]")
-        _CONSOLE_LOG_FN(colored(time_str, COLOR_MAP[level]) + " " + msg)
+        if timestamp:
+            time_str = time.strftime("[%Y-%m-%d %H:%M:%S]")
+            _CONSOLE_LOG_FN(colored(time_str, COLOR_MAP[level]) + " " + msg)
+        else:
+            _CONSOLE_LOG_FN(msg)
     if LOGGER.hasHandlers():
         LOGGING_MAP[level](msg)
 

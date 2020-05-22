@@ -10,7 +10,7 @@ def test_log() -> None:
         flutes.set_logging_level("warning")
         flutes.log("info output", "info")
         flutes.log("warning output", "warning")
-        flutes.log("error output", "error")
+        flutes.log("error output", "error", timestamp=False)
         flutes.log("success output", "success")
 
         # # For some reason the following fails randomly on GitHub CI

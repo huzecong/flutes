@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- `progress_open` method now takes an `bar_fn` argument that allows overriding the progress bar creation process, useful
+- `progress_open` method now takes a `bar_fn` argument that allows overriding the progress bar creation process, useful
   for working with `ProgressBarManager`.
 - `__return_state__` method for `PoolState` which allows customizing the returned pool state when `pool.get_states()` is
   called.
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       arguments to the called function in the same way as in `apply`.
     - Add `broadcast` method for stateful pools.
 - `take` and `drop` iterator methods.
+- `log` method now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
