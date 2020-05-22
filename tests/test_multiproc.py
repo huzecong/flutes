@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 from typing import Dict, List
-from unittest.mock import MagicMock, NonCallableMagicMock
+from unittest.mock import MagicMock, NonCallableMagicMock, patch
 
 import pytest
 
@@ -139,13 +139,45 @@ def file_progress_bar_fn(idx: int, bar) -> None:
 
 
 def test_ProgressBarManager() -> None:
-    for proc in [0, 2]:
-        # Test multiprocessing in `proc = 2`
-        # Test coverage in `proc = 0`
-        manager = flutes.ProgressBarManager()
-        with flutes.safe_pool(proc, closing=[manager]) as pool:
-            fn = functools.partial(progress_bar_fn, bar=manager.proxy)
-            pool.map(fn, range(10))
-            fn = functools.partial(file_progress_bar_fn, bar=manager.proxy)
-            pool.map(fn, range(4))
-    flutes.log("This should still show up", force_console=True)
+    for verbose in [False, True]:
+        for proc in [0, 2]:
+            # Test multiprocessing in `proc = 2`
+            # Test coverage in `proc = 0`
+            manager = flutes.ProgressBarManager(verbose=verbose)
+            with flutes.safe_pool(proc, closing=[manager]) as pool:
+                fn = functools.partial(progress_bar_fn, bar=manager.proxy)
+                pool.map(fn, range(10))
+                fn = functools.partial(file_progress_bar_fn, bar=manager.proxy)
+                pool.map(fn, range(4))
+            flutes.log(f"This should still show up: verbose={verbose}, proc={proc}", force_console=True)
+
+
+def test_ProgressBarManager_increment_correct() -> None:
+    def update(value: int):
+        nonlocal call_count, progress
+        call_count += 1
+        progress += value
+
+    manager = flutes.ProgressBarManager()
+    proxy = manager.proxy
+    proxy.update = update
+
+    call_count = progress = 0
+    for _ in proxy.new(list(range(10000)), update_frequency=0.02):
+        pass
+    assert call_count == int(1.0 / 0.02) and progress == 10000
+
+    call_count = progress = 0
+    for _ in proxy.new(list(range(5)), update_frequency=0.01):
+        pass
+    assert call_count == 5 and progress == 5
+
+    call_count = progress = 0
+    for _ in proxy.new(range(10020), update_frequency=50):
+        pass
+    assert call_count == flutes.ceil_div(10020, 50) and progress == 10020
+
+    call_count = progress = 0
+    for _ in proxy.new(range(2), update_frequency=50):
+        pass
+    assert call_count == 1 and progress == 2

@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add `broadcast` method for stateful pools.
 - `take` and `drop` iterator methods.
 - `log` method now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
+- `ProgressBarManager`:
+    - The constructor now takes a `verbose` argument. When `verbose == False`, all progress bars are disabled.
+    - `Proxy.new` now supports the `update_frequency` argument. If an iterable is specified, this argument controls the
+      frequency of `update` calls issued.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
