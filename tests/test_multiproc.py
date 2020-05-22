@@ -79,7 +79,7 @@ class PoolState2(flutes.PoolState):
     def __return_state__(self):
         return self.numbers
 
-    def generate(self, start: int, stop: int) -> None:
+    def generate(self, start: int, stop: int, *args) -> None:
         for x in range(start, stop):
             self.numbers.append(x)
 
@@ -88,7 +88,7 @@ def test_stateful_pool_get_state() -> None:
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs, state_class=PoolState2) as pool:
             intervals = list(range(0, 100 + 1, 5))
-            pool.starmap(PoolState2.generate, zip(intervals, intervals[1:]))
+            pool.starmap(PoolState2.generate, zip(intervals, intervals[1:]), args=(1, 2))  # dummy args
             states = pool.get_states()
             assert sorted(itertools.chain.from_iterable(states)) == list(range(100))  # type: ignore[arg-type]
 

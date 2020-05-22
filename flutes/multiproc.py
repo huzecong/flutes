@@ -199,7 +199,7 @@ def _pool_state_init(state_class: Type[PoolState], *args, **kwargs) -> None:
 def _pool_fn_with_state(fn: Callable[..., R], *args, **kwds) -> R:
     # Wrapper for compute function passed to stateful pools.
     frame = cast(FrameType, inspect.currentframe().f_back)  # type: ignore[union-attr]
-    if '__state__' not in frame.f_locals:  # in DummyPool we have only one layer on the stack
+    while '__state__' not in frame.f_locals:  # the function might be wrapped several types
         frame = cast(FrameType, frame.f_back)  # _pool_fn_with_state -> mapper -> worker
     local_vars = frame.f_locals
     state_obj = local_vars['__state__']
@@ -332,6 +332,9 @@ class StatefulPool(Generic[State]):
 
     @staticmethod
     def _apply_broadcast(self: State, broadcast_fn: Callable[[State], R], *args, **kwds) -> Optional[Tuple[R, int]]:
+        if not hasattr(self, '__broadcasted__'):
+            # Might be possible that a worker crashed and restarted.
+            self.__broadcasted__ = False
         if self.__broadcasted__:
             return None
         self.__broadcasted__ = True
