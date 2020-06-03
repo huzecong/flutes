@@ -692,17 +692,23 @@ class ProgressBarManager:
                 These can override the default arguments set in the constructor of :class:`ProgressBarManager`.
             :return: The wrapped iterable, or the proxy class itself.
             """
-            length = None
+            length = kwargs.get("total", None)
             ret_val = self
             if iterable is not None:
                 try:
-                    length = len(iterable)
-                    kwargs.update(total=length)
+                    iter_len = len(iterable)
+                    if length is None:
+                        length = iter_len
+                        kwargs.update(total=iter_len)
+                    elif length != iter_len:
+                        import warnings
+                        warnings.warn(f"Iterable has length {iter_len} but total={length} is specified")
                 except TypeError:
                     pass
                 if isinstance(update_frequency, float):
                     if length is None:
-                        raise ValueError("`iterable` must have valid length if `update_frequency` is float")
+                        raise ValueError("`iterable` must have valid length, or `total` must be specified "
+                                         "if `update_frequency` is float")
                     if not (0.0 < update_frequency <= 1.0):
                         raise ValueError("`update_frequency` must be within the range (0, 1]")
                     ret_val = self._iter_per_percentage(iterable, length, update_frequency)
