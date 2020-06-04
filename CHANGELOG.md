@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - All pool methods of all pool instances now supports keyword-only arguments `args` and `kwds`, which allows passing
       arguments to the called function in the same way as in `apply`.
     - Add `broadcast` method for stateful pools.
+    - Add `gather` method for all pools. This allows aggregating results from pool functions that return generators.
 - `take` and `drop` iterator methods.
 - `log` method now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
 - `ProgressBarManager`:

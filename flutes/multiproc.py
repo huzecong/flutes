@@ -2,10 +2,13 @@ import contextlib
 import functools
 import inspect
 import multiprocessing as mp
+import pickle
 import sys
 import threading
+import time
 import traceback
 import types
+from queue import Empty
 from multiprocessing.pool import Pool
 from collections import defaultdict
 from types import FrameType
@@ -15,10 +18,11 @@ from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, 
 from tqdm import tqdm
 from typing_extensions import Literal
 
+from .exception import log_exception
+from .log import get_worker_id
 from .types import PathType
 
 __all__ = [
-    "get_worker_id",
     "PoolState",
     "safe_pool",
     "MultiprocessingFileWriter",
@@ -100,6 +104,10 @@ class DummyPool:
             -> 'mp.pool.ApplyResult[R]':
         return DummyApplyResult(self.apply(fn, args, kwds))
 
+    def gather(self, fn: Callable[[T], Iterator[R]], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> Iterator[R]:
+        for x in iterable:
+            yield from fn(x, *args, **kwds)  # type: ignore[call-arg]
+
     @staticmethod
     def _no_op(self, *args, **kwargs):
         pass
@@ -112,15 +120,6 @@ class DummyPool:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._state = mp.pool.TERMINATE
-
-
-def get_worker_id() -> Optional[int]:
-    r"""Return the ID of the pool worker process, or ``None`` if the current process is not a pool worker."""
-    proc_name = mp.current_process().name
-    if "PoolWorker" in proc_name:
-        worker_id = int(proc_name[(proc_name.find('-') + 1):])
-        return worker_id
-    return None
 
 
 class PoolState:
@@ -227,6 +226,20 @@ class FuncWrapper:
         return self.fn(*args, *self.args, **self.kwds)
 
 
+END_SIGNATURE = b"END"
+
+
+def _gather_fn(queue: 'mp.Queue[bytes]', fn: Callable[[T], Iterator[R]], *args, **kwargs) -> Optional[bool]:
+    try:
+        for x in fn(*args, **kwargs):  # type: ignore[call-arg]
+            queue.put(pickle.dumps(x, protocol=pickle.HIGHEST_PROTOCOL))
+    except Exception as e:
+        log_exception(e)
+    # No matter what happens, signal the end of generation.
+    queue.put(END_SIGNATURE)
+    return True
+
+
 class PoolWrapper(mp.pool.Pool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -246,6 +259,54 @@ class PoolWrapper(mp.pool.Pool):
             return pool_method(func, *_, **__)
 
         return wrapped_method
+
+    def gather(self, fn: Callable[[T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
+               args: Iterable[Any] = (), kwds: Dict[str, Any] = {}) -> Iterator[R]:
+        r"""Apply a function that returns a generator to each element in an iterable, and return an iterator over the
+        concatenation of all elements produced by the generators. Order is not guaranteed across generators, but
+        relative order is preserved for elements from the same generator.
+
+        This method chops the iterable into a number of chunks which it submits to the process pool as separate tasks.
+        The (approximate) size of these chunks can be specified by setting :attr:`chunksize` to a positive integer.
+
+        The underlying implementation uses a managed queue to
+
+        :param fn: The function returning generators.
+        :param iterable: The iterable.
+        :param chunksize: The (approximate) size of each chunk.
+        :param args: Positional arguments to apply to the function.
+        :param kwds: Keyword arguments to apply to the function.
+        :return: An iterator over the concatenation of all elements produced by the generators.
+        """
+        with mp.Manager() as manager:
+            queue = manager.Queue()  # type: ignore[attr-defined]
+            gather_fn = functools.partial(_gather_fn, queue, fn)
+            if not isinstance(iterable, list):
+                iterable = list(iterable)
+            length = len(iterable)
+            end_count = 0
+            ret = self.map_async(  # type: ignore[call-arg]
+                gather_fn, iterable, chunksize=chunksize, args=args, kwds=kwds)
+            while True:
+                try:
+                    x = queue.get_nowait()
+                except Empty:
+                    if ret.ready():
+                        # Update length to the number of end signatures successfully returned.
+                        new_length = sum(map(bool, ret.get()))
+                        if end_count == new_length:
+                            break
+                        length = new_length
+                    time.sleep(0.1)  # queue empty, wait for a bit
+                    continue
+                except (OSError, ValueError):
+                    break  # data in queue could be corrupt, e.g. if worker process is terminated while enqueueing
+                if x == END_SIGNATURE:
+                    end_count += 1
+                    if end_count == length:
+                        break
+                else:
+                    yield pickle.loads(x)
 
 
 class StatefulPool(Generic[State]):
@@ -424,6 +485,10 @@ class PoolType(Pool):
                       error_callback: Optional[Callable[[BaseException], None]] = None,
                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
 
+    def gather(self,
+               fn: Callable[[T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
+               *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+
 
 class StatefulPoolType(PoolType, Generic[State]):
     # Stub for stateful pool. Uninherited functions share the same signature as stubs for `PoolType`.
@@ -450,6 +515,10 @@ class StatefulPoolType(PoolType, Generic[State]):
 
     def broadcast(self, fn: Callable[[State], R],
                   *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+
+    def gather(self,  # type: ignore[override]
+               fn: Callable[[State, T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
+               *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
 
 @overload
@@ -663,6 +732,7 @@ class ProgressBarManager:
         r"""Proxy class for the progress bar manager. Subprocesses should communicate with the progress bar manager
         through this class.
         """
+
         def __init__(self, queue: 'mp.Queue[Event]'):
             self.queue = queue
 

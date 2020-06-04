@@ -1,18 +1,19 @@
 import functools
 import logging
-import multiprocessing
+import multiprocessing as mp
 import sys
 import threading
 import time
 import traceback
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from termcolor import colored
 
-from .multiproc import get_worker_id
+
 from .types import PathType
 
 __all__ = [
+    "get_worker_id",
     "get_logging_levels",
     "set_log_file",
     "log",
@@ -20,6 +21,14 @@ __all__ = [
     "set_console_logging_function",
 ]
 
+
+def get_worker_id() -> Optional[int]:
+    r"""Return the ID of the pool worker process, or ``None`` if the current process is not a pool worker."""
+    proc_name = mp.current_process().name
+    if "PoolWorker" in proc_name:
+        worker_id = int(proc_name[(proc_name.find('-') + 1):])
+        return worker_id
+    return None
 
 class MultiprocessingFileHandler(logging.Handler):
     """multiprocessing log handler
@@ -34,7 +43,7 @@ class MultiprocessingFileHandler(logging.Handler):
         logging.Handler.__init__(self)
 
         self._handler = logging.FileHandler(path, mode=mode)
-        self.queue: 'multiprocessing.Queue[str]' = multiprocessing.Queue(-1)
+        self.queue: 'mp.Queue[str]' = mp.Queue(-1)
 
         thrd = threading.Thread(target=self.receive)
         thrd.daemon = True
@@ -116,7 +125,7 @@ LEVEL_MAP = {
     "info": logging.INFO,
     "quiet": 999,
 }
-_CONSOLE_LOGGING_LEVEL = multiprocessing.Value('i', LEVEL_MAP["info"], lock=False)
+_CONSOLE_LOGGING_LEVEL = mp.Value('i', LEVEL_MAP["info"], lock=False)
 
 
 def get_logging_levels() -> List[str]:
