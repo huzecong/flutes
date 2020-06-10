@@ -595,14 +595,15 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
     except KeyboardInterrupt:
         from .log import log  # prevent circular import
         log("Gracefully shutting down...", "warning", force_console=True)
-        print("Press Ctrl-C again to force terminate...")
+        log("Press Ctrl-C again to force terminate...", force_console=True, timestamp=False)
         try:
             pool.close()
             pool.join()
         except KeyboardInterrupt:
             pass
     except Exception:
-        print(traceback.format_exc())
+        from .log import log  # prevent circular import
+        log(traceback.format_exc(), force_console=True, timestamp=False)
     finally:
         close_fn()
         # In Python 3.8, the interpreter hangs when the pool is not properly closed.

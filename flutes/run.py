@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 from typing import Dict, List, NamedTuple, Optional, TypeVar, Union
 
+from .log import log
 from .types import PathType
 
 __all__ = [
@@ -78,7 +79,7 @@ def run_command(args: Union[str, List[str]], *,
     if cwd is not None:
         cwd = str(cwd)
     if verbose:
-        print((cwd or "") + "> " + repr(args))
+        log((cwd or "") + "> " + repr(args), timestamp=False, include_proc_id=False)
     with tempfile.TemporaryFile() as f:
         try:
             ret = subprocess.run(args, check=True, stdout=f, stderr=subprocess.STDOUT,
@@ -99,9 +100,9 @@ def run_command(args: Union[str, List[str]], *,
             output = f.read()
             if verbose:
                 try:
-                    print(output.decode('utf-8'))
+                    log(output.decode('utf-8'), timestamp=False, include_proc_id=False)
                 except UnicodeDecodeError:
                     for line in output.split(b"\n"):
-                        print(line)
+                        log(str(line), timestamp=False, include_proc_id=False)
             return CommandResult(args, ret.returncode, output)
     return CommandResult(args, ret.returncode, None)
