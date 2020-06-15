@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `safe_pool`:
     - All pool methods of all pool instances now supports keyword-only arguments `args` and `kwds`, which allows passing
       arguments to the called function in the same way as in `apply`.
-    - Add `broadcast` method for stateful pools.
-    - Add `gather` method for all pools. This allows aggregating results from pool functions that return generators.
+    - Added `broadcast` method for stateful pools.
+    - Added `gather` method for all pools. This allows aggregating results from pool functions that return generators.
+    - The constructor now takes a `suppress_exceptions` argument. Exceptions occurred during the lifetime of the pool
+      are only swallowed if the argument is `True`. The argument defaults to `False`, which also changes the default
+      behavior of pools.
 - `take` and `drop` iterator methods.
 - `log` method now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
 - `ProgressBarManager`:
@@ -27,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `safe_pool`:
     - Fixed bug where the `processes` argument was not passed to the `multiprocessing.Pool` constructor. As a result,
       pools are always using the maximum number of processes if `processes != 0`.
+    - The `closing` argument is now validated before the pool is constructed. Non-callable objects without a `close`
+      method will trigger an exception.
 - `ProgressBarManager`:
     - `Proxy.iter` is merged into `Proxy.new`; `Proxy.new` now returns itself if `iterable` is not specified.
     - Additional dummy methods are added to `Proxy` to imitate the behavior of `tqdm`.

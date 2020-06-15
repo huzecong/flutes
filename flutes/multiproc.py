@@ -3,19 +3,20 @@ import functools
 import inspect
 import multiprocessing as mp
 import pickle
+import random
 import sys
 import threading
 import time
 import traceback
 import types
-from multiprocessing.reduction import AbstractReducer
-from queue import Empty
-from multiprocessing.pool import Pool
 from collections import defaultdict
+from multiprocessing.pool import Pool
+from queue import Empty
 from types import FrameType
-from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type,
-                    TypeVar, Union, cast, no_type_check, overload, Mapping)
+from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Set,
+                    Tuple, Type, TypeVar, Union, cast, no_type_check, overload)
 
+from multiprocessing.reduction import AbstractReducer
 from tqdm import tqdm
 from typing_extensions import Literal
 
@@ -229,17 +230,17 @@ class FuncWrapper:
         return self.fn(*args, *self.args, **self.kwds)
 
 
-END_SIGNATURE = b"END"
+END_SIGNATURE = (random.random(), b"END")
 
 
-def _gather_fn(queue: 'mp.Queue[bytes]', fn: Callable[[T], Iterator[R]], *args, **kwargs) -> Optional[bool]:
+def _gather_fn(queue: 'mp.Queue[R]', fn: Callable[[T], Iterator[R]], *args, **kwargs) -> Optional[bool]:
     try:
         for x in fn(*args, **kwargs):  # type: ignore[call-arg]
             queue.put(x)
     except Exception as e:
         log_exception(e)
     # No matter what happens, signal the end of generation.
-    queue.put(END_SIGNATURE)
+    queue.put(cast(R, END_SIGNATURE))
     return True
 
 
@@ -293,9 +294,9 @@ class PoolWrapper(mp.pool.Pool):
         :return: An iterator over the concatenation of all elements produced by the generators.
         """
         ctx = mp.get_context()
-        ctx.reducer = CustomMPReducer
+        ctx.reducer = CustomMPReducer  # type: ignore[assignment]
         with ctx.Manager() as manager:
-            queue = manager.Queue()  # type: ignore[attr-defined]
+            queue = manager.Queue()
             gather_fn = functools.partial(_gather_fn, queue, fn)
             if not isinstance(iterable, list):
                 iterable = list(iterable)
@@ -540,16 +541,18 @@ class StatefulPoolType(PoolType, Generic[State]):
 
 @overload
 def safe_pool(processes: int, *args, state_class: Type[State], init_args: Tuple[Any, ...] = (),
-              closing: Optional[List[Any]] = None, **kwargs) -> StatefulPoolType[State]: ...
+              closing: Optional[List[Any]] = None, suppress_exceptions: bool = False,
+              **kwargs) -> StatefulPoolType[State]: ...
 
 
 @overload
 def safe_pool(processes: int, *args, state_class: Literal[None] = None,
-              closing: Optional[List[Any]] = None, **kwargs) -> PoolType: ...
+              closing: Optional[List[Any]] = None, suppress_exceptions: bool = False, **kwargs) -> PoolType: ...
 
 
 @contextlib.contextmanager  # type: ignore[misc]
-def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **kwargs):
+def safe_pool(processes, *args, state_class=None, init_args=(), closing=None,
+              suppress_exceptions=False, **kwargs):
     r"""A wrapper over :py:class:`multiprocessing.Pool <multiprocessing.pool.Pool>` with additional functionalities:
 
     - Fallback to sequential execution when ``processes == 0``.
@@ -572,8 +575,10 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
 
         - If it is a callable, ``obj`` is called with no arguments.
         - If it has an ``close()`` method, ``obj.close()`` is invoked.
-        - Otherwise, it is ignored.
+        - Otherwise, an exception is raised before the pool is constructed.
 
+    :param suppress_exceptions: If ``True``, exceptions raised within the lifetime of the pool are suppressed. Defaults
+        to ``False``.
     :return: A context manager that can be used in a ``with`` statement.
     """
     if state_class is not None:
@@ -582,13 +587,19 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
 
     if closing is not None and not isinstance(closing, list):
         raise ValueError("`closing` should either be `None` or a list")
+    closing_fns = []
+    for obj in (closing or []):
+        if callable(obj):
+            closing_fns.append(obj)
+        elif hasattr(obj, "close") and callable(getattr(obj, "close")):
+            closing_fns.append(obj.close)
+        else:
+            raise ValueError("Invalid object in `closing` list. "
+                             "The object must either be a callable or has a `close` method")
 
     def close_fn():
-        for obj in (closing or []):
-            if callable(obj):
-                obj()
-            elif hasattr(obj, "close") and callable(getattr(obj, "close")):
-                obj.close()
+        for fn in closing_fns:
+            fn()
 
     if processes == 0:
         pool_class = DummyPool
@@ -609,7 +620,7 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
 
     try:
         yield pool
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as e:
         from .log import log  # prevent circular import
         log("Gracefully shutting down...", "warning", force_console=True)
         log("Press Ctrl-C again to force terminate...", force_console=True, timestamp=False)
@@ -618,9 +629,13 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None, **
             pool.join()
         except KeyboardInterrupt:
             pass
-    except Exception:
-        from .log import log  # prevent circular import
-        log(traceback.format_exc(), force_console=True, timestamp=False)
+        raise e  # keyboard interrupts are always reraised
+    except Exception as e:
+        if suppress_exceptions:
+            from .log import log  # prevent circular import
+            log(traceback.format_exc(), force_console=True, timestamp=False)
+        else:
+            raise e
     finally:
         close_fn()
         # In Python 3.8, the interpreter hangs when the pool is not properly closed.
@@ -664,7 +679,8 @@ class MultiprocessingFileWriter(IO[Any]):
 def kill_proc_tree(pid: int, including_parent: bool = True) -> None:
     r"""Kill all child processes of a given process.
 
-    :param pid: The process ID (PID) of the process whose children we want to kill.
+    :param pid: The process ID (PID) of the process whose children we want to kill. To commit suicide, use
+        :py:meth:`os.getpid`.
     :param including_parent: If ``True``, the process itself is killed as well. Defaults to ``True``.
     """
     import psutil
@@ -712,7 +728,8 @@ class ProgressBarManager:
     .. code:: python
 
         def run(xs: List[int], *, bar) -> int:
-            bar.new(total=len(xs), desc="Worker {flutes.get_worker_id()}")  # create a new progress bar
+            # Create a new progress bar for the current worker.
+            bar.new(total=len(xs), desc="Worker {flutes.get_worker_id()}")
             # Compute-intensive stuff!
             result = 0
             for idx, x in enumerate(xs):
@@ -737,6 +754,7 @@ class ProgressBarManager:
             return result
 
         manager = flutes.ProgressBarManager()
+        # Worker processes interact with the manager through proxies.
         run_fn = functools.partial(run, bar=manager.proxy)
         with flutes.safe_pool(4) as pool:
             for idx, _ in enumerate(pool.imap_unordered(run_fn, data)):
@@ -862,7 +880,7 @@ class ProgressBarManager:
         def __exit__(self, exc_type, exc_val, exc_tb):
             self.close()
 
-    class DummyProxy(Proxy):
+    class _DummyProxy(Proxy):
         def __init__(self):
             pass
 
@@ -883,7 +901,7 @@ class ProgressBarManager:
     def __init__(self, verbose: bool = True, **kwargs):
         self.verbose = verbose
         if not verbose:
-            self._proxy: 'ProgressBarManager.Proxy' = self.DummyProxy()
+            self._proxy: 'ProgressBarManager.Proxy' = self._DummyProxy()
             return
 
         self.manager = mp.Manager()

@@ -36,12 +36,17 @@ def test_safe_pool() -> None:
 
     file_obj = NonCallableMagicMock()
     file_obj.mock_add_spec(["close"])
-    with flutes.safe_pool(2, closing=[file_obj]) as pool:
+    with flutes.safe_pool(2, closing=[file_obj], suppress_exceptions=True) as pool:
         result = list(pool.imap(sqr, seq))
         raise ValueError  # should swallow exceptions
     assert isinstance(pool, pool_type)
     assert result == target
     file_obj.close.assert_called_once()
+
+    with pytest.raises(KeyboardInterrupt):
+        with flutes.safe_pool(2, closing=[file_obj], suppress_exceptions=True) as pool:
+            result = list(pool.imap(sqr, seq))
+            raise KeyboardInterrupt
 
 
 class PoolState(flutes.PoolState):
