@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 ### Changed
 
-## [0.3.0]
+## [0.3.0] - 2020-06-15
 ### Added
 - `progress_open` method now takes a `bar_fn` argument that allows overriding the progress bar creation process, useful
   for working with `ProgressBarManager`.
