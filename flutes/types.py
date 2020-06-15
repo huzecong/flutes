@@ -14,4 +14,4 @@ MaybeTuple = Union[T, Tuple[T, ...]]
 MaybeList = Union[T, List[T]]
 MaybeSeq = Union[T, Sequence[T]]
 MaybeDict = Union[T, Dict[str, T]]
-PathType = Union[str, Path]
+PathType = TypeVar('PathType', str, Path)

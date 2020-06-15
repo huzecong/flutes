@@ -76,14 +76,13 @@ def run_command(args: Union[str, List[str]], *,
         ``subprocess.TimeoutExpired`` error.
     :return: An instance of :class:`CommandResult`.
     """
-    if cwd is not None:
-        cwd = str(cwd)
+    cwd_str = str(cwd) if cwd is not None else None
     if verbose:
-        log((cwd or "") + "> " + repr(args), timestamp=False, include_proc_id=False)
+        log((cwd_str or "") + "> " + repr(args), timestamp=False, include_proc_id=False)
     with tempfile.TemporaryFile() as f:
         try:
             ret = subprocess.run(args, check=True, stdout=f, stderr=subprocess.STDOUT,
-                                 timeout=timeout, env=env, cwd=cwd, **kwargs)
+                                 timeout=timeout, env=env, cwd=cwd_str, **kwargs)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             f.seek(0)
             output = f.read()

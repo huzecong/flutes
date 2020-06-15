@@ -9,7 +9,6 @@ from typing import Callable, List, Optional
 
 from termcolor import colored
 
-
 from .types import PathType
 
 __all__ = [

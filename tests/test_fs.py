@@ -12,6 +12,8 @@ def test_copy_tree() -> None:
         assert result.return_code == 0
         flutes.copy_tree(path / "flutes", path / "flutes_copy")
         assert flutes.get_folder_size(path / "flutes") == flutes.get_folder_size(path / "flutes_copy")
+        assert (sorted(flutes.scandir(path / "flutes")) ==
+                sorted([(path / "flutes" / p).absolute() for p in os.listdir(path / "flutes")]))
 
 
 def test_readable_size() -> None:

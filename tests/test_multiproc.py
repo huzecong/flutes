@@ -29,9 +29,8 @@ def test_safe_pool() -> None:
 
     file_obj = MagicMock()
     with flutes.safe_pool(0, closing=[file_obj]) as pool:
-        result = list(pool.imap(sqr, seq))
+        check_iterator(pool.imap(sqr, seq), target)
     assert not isinstance(pool, pool_type)
-    assert result == target
     file_obj.assert_called_once()
 
     file_obj = NonCallableMagicMock()
@@ -45,7 +44,6 @@ def test_safe_pool() -> None:
 
     with pytest.raises(KeyboardInterrupt):
         with flutes.safe_pool(2, closing=[file_obj], suppress_exceptions=True) as pool:
-            result = list(pool.imap(sqr, seq))
             raise KeyboardInterrupt
 
 
@@ -112,19 +110,14 @@ def test_pool_methods() -> None:
     for n_procs in [0, 2]:
         for state_class in [PoolState, None]:
             with flutes.safe_pool(n_procs, state_class=state_class, init_args=(None,)) as pool:
-                map_result = pool.map(sqr, seq, args=args, kwds=kwds)
-                imap_result = list(pool.imap(sqr, seq, args=args, kwds=kwds))
-                imap_unordered_result = sorted(pool.imap_unordered(sqr, seq, args=args, kwds=kwds))
-                starmap_result = pool.starmap(mul, zip(seq, seq), args=args, kwds=kwds)
-                map_async_result = pool.map_async(sqr, seq, args=args, kwds=kwds).get()
-                starmap_async_result = pool.starmap_async(mul, zip(seq, seq), args=args, kwds=kwds).get()
-                apply_result = pool.apply(sqr, (10, 2), kwds=kwds)
-                apply_async_result = pool.apply_async(sqr, (10, 2), kwds=kwds).get()
-            for result in [map_result, imap_result, imap_unordered_result, starmap_result, map_async_result,
-                           starmap_async_result]:
-                assert result == target
-            for result in [apply_result, apply_async_result]:
-                assert result == 100 * 2 * 3
+                assert pool.map(sqr, seq, args=args, kwds=kwds) == target
+                check_iterator(pool.imap(sqr, seq, args=args, kwds=kwds), target)
+                assert sorted(pool.imap_unordered(sqr, seq, args=args, kwds=kwds)) == target
+                assert pool.starmap(mul, zip(seq, seq), args=args, kwds=kwds) == target
+                assert pool.map_async(sqr, seq, args=args, kwds=kwds).get() == target
+                assert pool.starmap_async(mul, zip(seq, seq), args=args, kwds=kwds).get() == target
+                assert pool.apply(sqr, (10, 2), kwds=kwds) == 100 * 2 * 3
+                assert pool.apply_async(sqr, (10, 2), kwds=kwds).get() == 100 * 2 * 3
 
 
 def gather_fn(bounds: Tuple[int, int]) -> Iterator[int]:
@@ -138,11 +131,9 @@ def test_gather() -> None:
     answer = set(range(n))
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs) as pool:
-            output = set(pool.gather(gather_fn, zip(intervals, intervals[1:])))
-        assert answer == output
+            assert set(pool.gather(gather_fn, zip(intervals, intervals[1:]))) == answer
         with flutes.safe_pool(n_procs, state_class=PoolState2) as pool:
-            output = set(pool.gather(PoolState2.gather_fn, zip(intervals, intervals[1:])))
-        assert answer == output
+            assert set(pool.gather(PoolState2.gather_fn, zip(intervals, intervals[1:]))) == answer
 
 
 def progress_bar_fn(idx: int, bar) -> None:

@@ -3,7 +3,6 @@ import functools
 import inspect
 import multiprocessing as mp
 import pickle
-import random
 import sys
 import threading
 import time
@@ -218,7 +217,8 @@ class FuncWrapper:
         return self.fn(*args, *self.args, **self.kwds)
 
 
-END_SIGNATURE = (random.random(), b"END")
+# END_SIGNATURE = (random.random(), b"END")  # this would break if start_method is "spawn"
+END_SIGNATURE = (b"END",)
 
 
 def _gather_fn(queue: 'mp.Queue[R]', fn: Callable[[T], Iterator[R]], *args, **kwargs) -> Optional[bool]:
@@ -455,14 +455,14 @@ class PoolType(Pool):
     _state: int
     _processes: int
 
-    def apply(self,  # type: ignore[override]
+    def apply(self,
               fn: Callable[..., T], args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> T:
         r"""Calls ``fn`` with arguments ``args`` and keyword arguments ``kwds``, and blocks until the result is ready.
 
         Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.apply` for details.
         """
 
-    def apply_async(self,  # type: ignore[override]
+    def apply_async(self,
                     func: Callable[..., T], args: Iterable[Any] = (), kwds: Mapping[str, Any] = {},
                     callback: Optional[Callable[[T], None]] = None,
                     error_callback: Optional[Callable[[BaseException], None]] = None) -> 'mp.pool.ApplyResult[T]':

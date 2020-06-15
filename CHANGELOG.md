@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - The constructor now takes a `verbose` argument. When `verbose == False`, all progress bars are disabled.
     - `Proxy.new` now supports the `update_frequency` argument. If an iterable is specified, this argument controls the
       frequency of `update` calls issued.
+- `scandir` method as a very light wrapper over `os.scandir`, to work better with `pathlib.Path`.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.
