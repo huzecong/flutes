@@ -2,7 +2,9 @@ variadic
 iteratively
 th
 iterable
+iterables
 initializer
 doesn
 stateful
 subprocesses
+unpickle

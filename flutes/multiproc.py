@@ -25,8 +25,8 @@ from .log import get_worker_id
 from .types import PathType
 
 __all__ = [
-    "PoolState",
     "safe_pool",
+    "PoolState",
     "MultiprocessingFileWriter",
     "kill_proc_tree",
     "ProgressBarManager",
@@ -163,26 +163,14 @@ class PoolState:
                     word_counter.update(state.word_cnt)
             return word_counter
 
-    A stateful pool with ``State`` as the state class supports using these functions as tasks:
-
-    - An **unbound** method of ``State`` class. The unbound method will be bound to the process-local state upon
-      dispatch.
-    - Any other pickle-able function. These functions will not be able to access the pool state. As a precaution, an
-      exception will be thrown if the first argument of the function is ``self``.
-
-    .. note::
-        ``pool.get_state()`` is only available for stateful pools, and must be called within the ``with`` block, before
-        the pool terminates. When invoked, additional tasks to retrieve the states are added to the pool's task queue,
-        and the function will block until the tasks complete.
-
-    **See also:** :func:`safe_pool`
+    **See also:** :func:`safe_pool`, :class:`StatefulPoolType`.
     """
     __broadcasted__: bool
 
     def __return_state__(self):
-        r"""When ``pool.get_states()`` is invoked, this method is called for each pool worker to return its state. The
-        default implementation returns the :class:`PoolState` object itself, but it might be beneficial to override this
-        method in certain cases:
+        r"""When :meth:`StatefulPoolType.get_states` is invoked, this method is called for each pool worker to return
+        its state. The default implementation returns the :class:`PoolState` object itself, but it might be beneficial
+        to override this method in cases such as:
 
         - The :class:`PoolState` object contains unpickle-able attributes.
         - You need to dynamically compute the state before it's retrieved.
@@ -277,22 +265,7 @@ class PoolWrapper(mp.pool.Pool):
 
     def gather(self, fn: Callable[[T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
                args: Iterable[Any] = (), kwds: Dict[str, Any] = {}) -> Iterator[R]:
-        r"""Apply a function that returns a generator to each element in an iterable, and return an iterator over the
-        concatenation of all elements produced by the generators. Order is not guaranteed across generators, but
-        relative order is preserved for elements from the same generator.
-
-        This method chops the iterable into a number of chunks which it submits to the process pool as separate tasks.
-        The (approximate) size of these chunks can be specified by setting :attr:`chunksize` to a positive integer.
-
-        The underlying implementation uses a managed queue to
-
-        :param fn: The function returning generators.
-        :param iterable: The iterable.
-        :param chunksize: The (approximate) size of each chunk.
-        :param args: Positional arguments to apply to the function.
-        :param kwds: Keyword arguments to apply to the function.
-        :return: An iterator over the concatenation of all elements produced by the generators.
-        """
+        # Refer to documentation at `PoolType.gather`.
         ctx = mp.get_context()
         ctx.reducer = CustomMPReducer  # type: ignore[assignment]
         with ctx.Manager() as manager:
@@ -432,7 +405,7 @@ class StatefulPool(Generic[State]):
     def broadcast(self, fn: Callable[[State], R], *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]:
         r"""Broadcast a function to each pool worker, and gather results.
 
-        :param fn: The function to broadcast
+        :param fn: The function to broadcast.
         :param args: Positional arguments to apply to the function.
         :param kwds: Keyword arguments to apply to the function.
         :return: The broadcast result from each worker process. Order is arbitrary.
@@ -471,53 +444,145 @@ class StatefulPool(Generic[State]):
 
 
 class PoolType(Pool):
+    r"""Multiprocessing stateless worker pool. See :class:`StatefulPoolType` for a pool with stateful workers.
+
+    .. note::
+        This class is only a stub for type annotation and documentation purposes only, and should not be used directly.
+        Please refer to :meth:`safe_pool` for a user-facing API for constructing pool instances.
+    """
+
     # Stub for non-stateful pool. Uninherited functions share the same signature as stubs for `Pool`.
     _state: int
     _processes: int
 
-    def imap(self,  # type: ignore[override]
-             fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
-             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+    def apply(self,  # type: ignore[override]
+              fn: Callable[..., T], args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> T:
+        r"""Calls ``fn`` with arguments ``args`` and keyword arguments ``kwds``, and blocks until the result is ready.
 
-    def imap_unordered(self,  # type: ignore[override]
-                       fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
-                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.apply` for details.
+        """
+
+    def apply_async(self,  # type: ignore[override]
+                    func: Callable[..., T], args: Iterable[Any] = (), kwds: Mapping[str, Any] = {},
+                    callback: Optional[Callable[[T], None]] = None,
+                    error_callback: Optional[Callable[[BaseException], None]] = None) -> 'mp.pool.ApplyResult[T]':
+        r"""Non-blocking version of :meth:`apply`.
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.apply_async` for details.
+        """
 
     def map(self,  # type: ignore[override]
             fn: Callable[[T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
-            *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+            *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]:
+        r"""A parallel, eager, blocking equivalent of :meth:`map`, with support for additional arguments. The sequential
+        equivalent is:
+
+        .. code:: python
+
+            list(map(lambda x: fn(x, *args, **kwds), iterable))
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.map` for details.
+        """
 
     def map_async(self,  # type: ignore[override]
                   fn: Callable[[T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
                   callback: Optional[Callable[[T], None]] = None,
                   error_callback: Optional[Callable[[BaseException], None]] = None,
-                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
+                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]':
+        r"""Non-blocking version of :meth:`map`.
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.map_async` for details.
+        """
+
+    def imap(self,  # type: ignore[override]
+             fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
+             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]:
+        r"""Lazy version of :meth:`map`.
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.imap` for details.
+        """
+
+    def imap_unordered(self,  # type: ignore[override]
+                       fn: Callable[[T], R], iterable: Iterable[T], chunksize: int = 1,
+                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]:
+        r"""Similar to :meth:`imap`, but the ordering of the results are not guaranteed.
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.imap_unordered` for details.
+        """
 
     def starmap(self,  # type: ignore[override]
                 fn: Callable[..., R], iterable: Iterable[Iterable[Any]], chunksize: Optional[int] = None,
-                *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+                *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]:
+        r"""Similar to :meth:`map`, except that the elements of ``iterable`` are expected to be iterables that are
+        unpacked as arguments. The sequential equivalent is:
+
+        .. code:: python
+
+            list(map(lambda xs: fn(*xs, *args, **kwds), iterable))
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.starmap` for details.
+        """
 
     def starmap_async(self,  # type: ignore[override]
                       fn: Callable[..., R], iterable: Iterable[Iterable[Any]], chunksize: Optional[int] = None,
                       callback: Optional[Callable[[T], None]] = None,
                       error_callback: Optional[Callable[[BaseException], None]] = None,
-                      *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
+                      *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]':
+        r"""Non-blocking version of :meth:`starmap`.
+
+        Please refer to Python documentation on :py:meth:`multiprocessing.pool.Pool.starmap_async` for details.
+        """
 
     def gather(self,
                fn: Callable[[T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
-               *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+               *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]:
+        r"""Apply a function that returns a generator to each element in an iterable, and return an iterator over the
+        concatenation of all elements produced by the generators. Order is not guaranteed across generators, but
+        relative order is preserved for elements from the same generator.
+
+        This method chops the iterable into a number of chunks which it submits to the process pool as separate tasks.
+        The (approximate) size of these chunks can be specified by setting :attr:`chunksize` to a positive integer.
+
+        The underlying implementation uses a managed queue to hold the results. The sequential equivalent is:
+
+        .. code:: python
+
+            itertools.chain.from_iterable(fn(x, *args, **kwds) for x in iterable)
+
+        :param fn: The function returning generators.
+        :param iterable: The iterable.
+        :param chunksize: The (approximate) size of each chunk. Defaults to 1. A larger ``chunksize`` is beneficial
+            for performance.
+        :param args: Positional arguments to apply to the function.
+        :param kwds: Keyword arguments to apply to the function.
+        :return: An iterator over the concatenation of all elements produced by the generators.
+        """
 
 
 class StatefulPoolType(PoolType, Generic[State]):
+    r"""Multiprocessing worker pool with per-worker states.
+
+    Compared to stateless workers provided by the Python :mod:`multiprocessing` library, workers in a stateful pool
+    have access to a process-local mutable state. The state is preserved throughout the lifetime of a worker process.
+    All stateless pool methods are supported in a stateful pool. Please refer to :class:`PoolType` for a list of
+    supported methods.
+
+    The pool state class is set at construction (see :meth:`safe_pool`), and must be a subclass of :class:`PoolState`.
+    A stateful pool with ``State`` as the state class supports using these functions as tasks:
+
+    - An **unbound** method of ``State`` class. The unbound method will be bound to the process-local state upon
+      dispatch.
+    - Any other pickle-able function. These functions will not be able to access the pool state. As a precaution, an
+      exception will be thrown if the first argument of the function is ``self``.
+
+    Please refer to :class:`PoolState` for a comprehensive example.
+
+    .. note::
+        This class is only a stub for type annotation and documentation purposes only, and should not be used directly.
+        Please refer to :meth:`safe_pool` for a user-facing API for constructing pool instances.
+    """
+
     # Stub for stateful pool. Uninherited functions share the same signature as stubs for `PoolType`.
-
-    def imap(self,  # type: ignore[override]
-             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
-             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
-
-    def imap_unordered(self,  # type: ignore[override]
-                       fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
-                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
     def map(self,  # type: ignore[override]
             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: Optional[int] = None,
@@ -529,14 +594,44 @@ class StatefulPoolType(PoolType, Generic[State]):
                   error_callback: Optional[Callable[[BaseException], None]] = None,
                   *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> 'mp.pool.ApplyResult[List[R]]': ...
 
-    def get_states(self) -> List[State]: ...
+    def imap(self,  # type: ignore[override]
+             fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
+             *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
-    def broadcast(self, fn: Callable[[State], R],
-                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]: ...
+    def imap_unordered(self,  # type: ignore[override]
+                       fn: Callable[[State, T], R], iterable: Iterable[T], chunksize: int = 1,
+                       *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
 
     def gather(self,  # type: ignore[override]
                fn: Callable[[State, T], Iterator[R]], iterable: Iterable[T], chunksize: int = 1,
                *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> Iterator[R]: ...
+
+    def get_states(self) -> List[State]:
+        r"""Return the states of each pool worker. The pool state class can override the
+        :meth:`PoolState.__return_state__` method to customize the returned value.
+
+        The implementation uses the :meth:`broadcast` mechanism to retrieve states. This function is blocking.
+
+        .. note::
+            :meth:`get_states` must be called within the ``with`` block, before the pool terminates. Calling
+            :meth:`get_states` while iterating over results from :meth:`imap`, :meth:`imap_unordered`, or :meth:`gather`
+            is likely to result in deadlock or long wait periods.
+
+        :return: A list of state for each worker process. Ordering of the states is arbitrary.
+        """
+
+    def broadcast(self, fn: Callable[[State], R],
+                  *, args: Iterable[Any] = (), kwds: Mapping[str, Any] = {}) -> List[R]:
+        r"""Call the function on each worker process and gather results. It is guaranteed that the function is called
+        on each worker process exactly once.
+
+        This function is blocking.
+
+        :param fn: The function to call on workers. This must be an unbound method of the pool state class.
+        :param args: Positional arguments to apply to the function.
+        :param kwds: Keyword arguments to apply to the function.
+        :return: A list of results, one from each worker process. Ordering of the results is arbitrary.
+        """
 
 
 @overload
@@ -560,6 +655,9 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None,
       for details.
     - Handles exceptions gracefully.
     - All pool methods support ``args`` and ``kwds``, which allows passing arguments to the called function.
+
+    Please see :class:`PoolType` (non-stateful) and :class:`StatefulPoolType` for supported methods of the pool
+    instance.
 
     :param processes: The number of worker processes to run. A value of 0 means sequential execution in the current
         process.

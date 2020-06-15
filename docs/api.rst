@@ -51,7 +51,21 @@ Math
 Multi-Processing
 ================
 
-.. automodule:: flutes.multiproc
+.. autofunction:: flutes.multiproc.safe_pool
+
+.. autoclass:: flutes.multiproc.PoolState
+    :members: __return_state__
+
+.. autoclass:: flutes.multiproc.PoolType
+    :members: apply, apply_async, map, map_async, imap, imap_unordered, starmap, starmap_async, gather
+
+.. autoclass:: flutes.multiproc.StatefulPoolType
+    :members: get_states, broadcast
+
+.. autoclass:: flutes.multiproc.MultiprocessingFileWriter
+    :members:
+
+.. autoclass:: flutes.multiproc.ProgressBarManager
     :members:
 
 

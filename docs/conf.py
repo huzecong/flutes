@@ -87,7 +87,7 @@ rst_prolog = r"""
 """
 
 autodoc_member_order = 'groupwise'
-# autodoc_typehints = 'none'
+autodoc_typehints = 'none'
 
 spelling_lang = 'en_US'
 spelling_word_list_filename = 'spelling_wordlist.txt'
