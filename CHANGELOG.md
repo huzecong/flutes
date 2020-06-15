@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+### Changed
+
+## [0.3.0]
+### Added
 - `progress_open` method now takes a `bar_fn` argument that allows overriding the progress bar creation process, useful
   for working with `ProgressBarManager`.
 - `__return_state__` method for `PoolState` which allows customizing the returned pool state when `pool.get_states()` is
@@ -85,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timing utilities: `work_in_progress`.
 - Convenient types: `MaybeTuple`, `MaybeList`, `MaybeSeq`, `MaybeDict`, `PathType`.
 
-[Unreleased]: https://github.com/huzecong/flutes/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/huzecong/flutes/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/huzecong/flutes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/huzecong/flutes/compare/v0.1...v0.2.0
 [0.1]: https://github.com/huzecong/flutes/releases/tag/v0.1

@@ -29,6 +29,7 @@ def get_worker_id() -> Optional[int]:
         return worker_id
     return None
 
+
 class MultiprocessingFileHandler(logging.Handler):
     """multiprocessing log handler
 
