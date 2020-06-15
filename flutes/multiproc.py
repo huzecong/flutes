@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 import types
+from multiprocessing.reduction import AbstractReducer
 from queue import Empty
 from multiprocessing.pool import Pool
 from collections import defaultdict
@@ -105,6 +106,8 @@ class DummyPool:
         return DummyApplyResult(self.apply(fn, args, kwds))
 
     def gather(self, fn: Callable[[T], Iterator[R]], iterable: Iterable[T], *_, args=(), kwds={}, **__) -> Iterator[R]:
+        if self._process_state is not None:
+            locals().update({"__state__": self._process_state})
         for x in iterable:
             yield from fn(x, *args, **kwds)  # type: ignore[call-arg]
 
@@ -232,12 +235,23 @@ END_SIGNATURE = b"END"
 def _gather_fn(queue: 'mp.Queue[bytes]', fn: Callable[[T], Iterator[R]], *args, **kwargs) -> Optional[bool]:
     try:
         for x in fn(*args, **kwargs):  # type: ignore[call-arg]
-            queue.put(pickle.dumps(x, protocol=pickle.HIGHEST_PROTOCOL))
+            queue.put(x)
     except Exception as e:
         log_exception(e)
     # No matter what happens, signal the end of generation.
     queue.put(END_SIGNATURE)
     return True
+
+
+class CustomMPReducer(AbstractReducer):
+    class ForkingPickler(AbstractReducer.ForkingPickler):
+        def __init__(self, *args, **kwargs):
+            # Override argument to always use the highest protocol.
+            if len(args) >= 2:
+                args = (args[0], pickle.HIGHEST_PROTOCOL, *args[2:])
+            else:
+                kwargs["protocol"] = pickle.HIGHEST_PROTOCOL
+            super().__init__(*args, **kwargs)
 
 
 class PoolWrapper(mp.pool.Pool):
@@ -278,7 +292,9 @@ class PoolWrapper(mp.pool.Pool):
         :param kwds: Keyword arguments to apply to the function.
         :return: An iterator over the concatenation of all elements produced by the generators.
         """
-        with mp.Manager() as manager:
+        ctx = mp.get_context()
+        ctx.reducer = CustomMPReducer
+        with ctx.Manager() as manager:
             queue = manager.Queue()  # type: ignore[attr-defined]
             gather_fn = functools.partial(_gather_fn, queue, fn)
             if not isinstance(iterable, list):
@@ -306,7 +322,7 @@ class PoolWrapper(mp.pool.Pool):
                     if end_count == length:
                         break
                 else:
-                    yield pickle.loads(x)
+                    yield x
 
 
 class StatefulPool(Generic[State]):
@@ -354,7 +370,8 @@ class StatefulPool(Generic[State]):
 
         self._pool = pool_class(*args, **kwargs)
 
-        for name in ["imap", "imap_unordered", "map", "map_async", "starmap", "starmap_async", "apply", "apply_async"]:
+        for name in ["imap", "imap_unordered", "map", "map_async", "starmap", "starmap_async",
+                     "apply", "apply_async", "gather"]:
             pool_method = getattr(self._pool, name)
             wrapped_method = self._define_method(pool_method)
             setattr(self, name, wrapped_method)
@@ -941,5 +958,6 @@ class ProgressBarManager:
         self.thread.join()
         for bar in self.progress_bars.values():
             bar.close()
+        self.manager.shutdown()
         from .log import set_console_logging_function
         set_console_logging_function(self._original_console_logging_fn)

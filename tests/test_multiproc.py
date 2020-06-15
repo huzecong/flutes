@@ -85,6 +85,10 @@ class PoolState2(flutes.PoolState):
         for x in range(start, stop):
             self.numbers.append(x)
 
+    def gather_fn(self, bounds: Tuple[int, int]) -> Iterator[int]:
+        l, r = bounds
+        yield from range(l, r)
+
 
 def test_stateful_pool_get_state() -> None:
     for n_procs in [0, 2]:
@@ -130,6 +134,9 @@ def test_gather() -> None:
     for n_procs in [0, 2]:
         with flutes.safe_pool(n_procs) as pool:
             output = set(pool.gather(gather_fn, zip(intervals, intervals[1:])))
+        assert answer == output
+        with flutes.safe_pool(n_procs, state_class=PoolState2) as pool:
+            output = set(pool.gather(PoolState2.gather_fn, zip(intervals, intervals[1:])))
         assert answer == output
 
 
