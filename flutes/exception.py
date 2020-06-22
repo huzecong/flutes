@@ -121,7 +121,13 @@ def exception_wrapper(handler_fn=None):
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             try:
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
+                if inspect.isgenerator(result):
+                    # Unroll the generator within this try-except block. Otherwise exceptions happening in the generator
+                    # will not be caught by our wrapper.
+                    yield from result
+                else:
+                    return result
             except Exception as e:
                 if handler_fn is None:
                     log_exception(e)

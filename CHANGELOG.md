@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 ### Changed
+- `exception_wrapper` now correctly handles functions that return generators. Exceptions raised during iteration of the
+  generator is also caught.
 
 ## [0.3.0] - 2020-06-15
 ### Added

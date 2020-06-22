@@ -37,3 +37,12 @@ def test_exception_wrapper() -> None:
         raise ValueError("test2")
 
     foo2()
+
+    @flutes.exception_wrapper()
+    def foo_gen(xs):
+        for x in xs:
+            if x == 5:
+                raise ValueError("test_generator")
+            yield x
+
+    list(foo_gen(range(10)))
