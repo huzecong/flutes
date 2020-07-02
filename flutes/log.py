@@ -8,6 +8,7 @@ import traceback
 from typing import Callable, List, Optional
 
 from termcolor import colored
+from typing_extensions import Literal
 
 from .types import PathType
 
@@ -103,6 +104,8 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 _remove_handlers(LOGGER)  # remove all default handlers
 
+LoggingLevel = Literal['success', 'warning', 'error', 'info', 'quiet']
+
 COLOR_MAP = {
     "success": "green",
     "warning": "yellow",
@@ -128,9 +131,9 @@ LEVEL_MAP = {
 _CONSOLE_LOGGING_LEVEL = mp.Value('i', LEVEL_MAP["info"], lock=False)
 
 
-def get_logging_levels() -> List[str]:
+def get_logging_levels() -> List[LoggingLevel]:
     r"""Return a list of logging levels that the logging system supports."""
-    return list(LEVEL_MAP.keys())
+    return list(LEVEL_MAP.keys())  # type: ignore[arg-type]
 
 
 def set_log_file(path: PathType, fmt: str = "%(asctime)s %(levelname)s: %(message)s") -> None:
@@ -145,7 +148,7 @@ def set_log_file(path: PathType, fmt: str = "%(asctime)s %(levelname)s: %(messag
     LOGGER.addHandler(handler)
 
 
-def log(msg: str, level: str = "info", force_console: bool = False,
+def log(msg: str, level: LoggingLevel = "info", force_console: bool = False,
         timestamp: bool = True, include_proc_id: bool = True) -> None:
     r"""Write a line of log with the specified logging level.
 
@@ -164,6 +167,7 @@ def log(msg: str, level: str = "info", force_console: bool = False,
     """
     if level not in LOGGING_MAP:
         raise ValueError(f"Incorrect logging level '{level}'")
+    msg = str(msg)
     if include_proc_id:
         worker_id = get_worker_id()
         if worker_id is not None:
@@ -178,7 +182,7 @@ def log(msg: str, level: str = "info", force_console: bool = False,
         LOGGING_MAP[level](msg)
 
 
-def set_logging_level(level: str, console: bool = True, file: bool = True) -> None:
+def set_logging_level(level: LoggingLevel, console: bool = True, file: bool = True) -> None:
     r"""Set the global logging level to the specified level.
 
     :param level: Logging level.

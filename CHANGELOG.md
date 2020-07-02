@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `exception_wrapper` now correctly handles functions that return generators. Exceptions raised during iteration of the
   generator is also caught.
+- `log` force converts `msg` to `str` to prevent accidentally passing non-`str` printable objects as argument. The type
+  of the `level` argument is also refined to using literal types to prevent incorrect arguments.
 
 ## [0.3.0] - 2020-06-15
 ### Added
