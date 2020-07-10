@@ -4,7 +4,7 @@ import subprocess
 import sys
 import traceback
 from bdb import BdbQuit
-from typing import Optional
+from typing import List, Optional, Type
 
 from .log import log
 
@@ -21,7 +21,7 @@ def register_ipython_excepthook(capture_keyboard_interrupt: bool = False) -> Non
     :param capture_keyboard_interrupt: If ``False``, an uncaught :py:exc:`KeyboardInterrupt` exception will not trigger
         the IPython debugger. Defaults to ``False``.
     """
-    skip_exceptions = [BdbQuit]
+    skip_exceptions: List[Type[BaseException]] = [BdbQuit]
     if capture_keyboard_interrupt:
         skip_exceptions.append(KeyboardInterrupt)
 
