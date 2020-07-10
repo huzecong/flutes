@@ -15,12 +15,18 @@ __all__ = [
 ]
 
 
-def register_ipython_excepthook() -> None:
+def register_ipython_excepthook(capture_keyboard_interrupt: bool = False) -> None:
     r"""Register an exception hook that launches an interactive IPython session upon uncaught exceptions.
+
+    :param capture_keyboard_interrupt: If ``False``, an uncaught :py:exc:`KeyboardInterrupt` exception will not trigger
+        the IPython debugger. Defaults to ``False``.
     """
+    skip_exceptions = [BdbQuit]
+    if capture_keyboard_interrupt:
+        skip_exceptions.append(KeyboardInterrupt)
 
     def excepthook(type, value, traceback):
-        if type is KeyboardInterrupt or type is BdbQuit:
+        if any(type is exc_type for exc_type in skip_exceptions):
             # Don't capture keyboard interrupts (Ctrl+C) or Python debugger exit events.
             sys.__excepthook__(type, value, traceback)
         else:

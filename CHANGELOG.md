@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- `register_ipython_excepthook` method now takes a `capture_keyboard_interrupt` argument, which allows the user to
+  decide whether `KeyboardInterrupt` should trigger the debugger.
 ### Changed
 - `exception_wrapper` now correctly handles functions that return generators. Exceptions raised during iteration of the
   generator is also caught.
