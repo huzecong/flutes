@@ -22,7 +22,7 @@ def register_ipython_excepthook(capture_keyboard_interrupt: bool = False) -> Non
         the IPython debugger. Defaults to ``False``.
     """
     skip_exceptions: List[Type[BaseException]] = [BdbQuit]
-    if capture_keyboard_interrupt:
+    if not capture_keyboard_interrupt:
         skip_exceptions.append(KeyboardInterrupt)
 
     def excepthook(type, value, traceback):
