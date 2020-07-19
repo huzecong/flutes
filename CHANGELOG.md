@@ -6,17 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- `register_ipython_excepthook` method now takes a `capture_keyboard_interrupt` argument, which allows the user to
+- `register_ipython_excepthook` function now takes a `capture_keyboard_interrupt` argument, which allows the user to
   decide whether `KeyboardInterrupt` should trigger the debugger.
+- `remove_suffix` function, similar to what `remove_prefix` does. 
 ### Changed
 - `exception_wrapper` now correctly handles functions that return generators. Exceptions raised during iteration of the
   generator is also caught.
 - `log` force converts `msg` to `str` to prevent accidentally passing non-`str` printable objects as argument. The type
   of the `level` argument is also refined to using literal types to prevent incorrect arguments.
+- `remove_prefix` now takes a `fully_match` argument that defaults to `True`. When `fully_match` is `True`, the prefix
+  is removed only if it entirely matches a prefix of the string. This also changes the default behavior of the function.
+
 
 ## [0.3.0] - 2020-06-15
 ### Added
-- `progress_open` method now takes a `bar_fn` argument that allows overriding the progress bar creation process, useful
+- `progress_open` function now takes a `bar_fn` argument that allows overriding the progress bar creation process, useful
   for working with `ProgressBarManager`.
 - `__return_state__` method for `PoolState` which allows customizing the returned pool state when `pool.get_states()` is
   called.
@@ -28,13 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - The constructor now takes a `suppress_exceptions` argument. Exceptions occurred during the lifetime of the pool
       are only swallowed if the argument is `True`. The argument defaults to `False`, which also changes the default
       behavior of pools.
-- `take` and `drop` iterator methods.
-- `log` method now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
+- `take` and `drop` iterator functions.
+- `log` function now takes a `timestamp` argument that allows turning off the logging timestamp in console logging.
 - `ProgressBarManager`:
     - The constructor now takes a `verbose` argument. When `verbose == False`, all progress bars are disabled.
     - `Proxy.new` now supports the `update_frequency` argument. If an iterable is specified, this argument controls the
       frequency of `update` calls issued.
-- `scandir` method as a very light wrapper over `os.scandir`, to work better with `pathlib.Path`.
+- `scandir` function as a very light wrapper over `os.scandir`, to work better with `pathlib.Path`.
 
 ### Changed
 - Fixed bug in stateful pool where the constructed state object is of type `PoolState` instead of the subclass.

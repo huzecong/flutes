@@ -15,6 +15,7 @@ __all__ = [
     "readable_size",
     "get_file_lines",
     "remove_prefix",
+    "remove_suffix",
     "copy_tree",
     "cache",
     "scandir",
@@ -57,23 +58,50 @@ def get_file_lines(path: PathType) -> int:
     return int(subprocess.check_output(['wc', '-l', str(path)]).split()[0].decode('utf-8'))
 
 
-def remove_prefix(s: str, prefix: str) -> str:
-    r"""Remove the specified prefix from a string. If only parts of the prefix match, then only that part is removed.
+def remove_prefix(s: str, prefix: str, fully_match: bool = True) -> str:
+    r"""Remove the specified prefix from a string. If only parts of the prefix match and :attr:`fully_match` is
+    ``False``, then only that part is removed.
 
     .. code:: python
 
         >>> remove_prefix("https://github.com/huzecong/flutes", "https://")
         "github.com/huzecong/flutes"
 
-        >>> remove_prefix("preface", "prefix")
+        >>> remove_prefix("preface", "prefix", fully_match=False)
         "face"
 
     :param s: The string whose prefix we want to remove.
     :param prefix: The prefix to remove.
+    :param fully_match: If ``True``, the prefix is only removed if it fully matches. Defaults to ``False``.
     """
     length = min(len(s), len(prefix))
     prefix_len = next((idx for idx in range(length) if s[idx] != prefix[idx]), length)
-    return s[prefix_len:]
+    if not fully_match or prefix_len == len(prefix):
+        return s[prefix_len:]
+    return s
+
+
+def remove_suffix(s: str, suffix: str, fully_match: bool = True) -> str:
+    r"""Remove the specified suffix from a string. If only parts of the suffix match and :attr:`fully_match` is
+    ``False``, then only that part is removed.
+
+    .. code:: python
+
+        >>> remove_suffix("https://github.com/huzecong/flutes", "/flutes")
+        "https://github.com/huzecong"
+
+        >>> remove_suffix("bugfix", "suffix", fully_match=False)
+        "bug"
+
+    :param s: The string whose suffix we want to remove.
+    :param suffix: The suffix to remove.
+    :param fully_match: If ``True``, the suffix is only removed if it fully matches. Defaults to ``False``.
+    """
+    length = min(len(s), len(suffix))
+    suffix_len = next((idx for idx in range(1, length + 1) if s[-idx] != suffix[-idx]), length + 1) - 1
+    if not fully_match or suffix_len == len(suffix):
+        return s[:-suffix_len] if suffix_len > 0 else s
+    return s
 
 
 def copy_tree(src: PathType, dst: PathType, overwrite: bool = False) -> None:

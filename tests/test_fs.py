@@ -24,9 +24,18 @@ def test_readable_size() -> None:
 
 def test_remove_prefix() -> None:
     assert flutes.remove_prefix("some string", "some ") == "string"
-    assert flutes.remove_prefix("some string", "something") == " string"
-    assert flutes.remove_prefix("some string", "not matching") == "some string"
-    assert flutes.remove_prefix("some string", "some string longer") == ""
+    assert flutes.remove_prefix("some string", "something") == "some string"
+    assert flutes.remove_prefix("some string", "something", fully_match=False) == " string"
+    assert flutes.remove_prefix("some string", "not matching", fully_match=False) == "some string"
+    assert flutes.remove_prefix("some string", "some string longer", fully_match=False) == ""
+
+
+def test_remove_suffix() -> None:
+    assert flutes.remove_suffix("some string", " string") == "some"
+    assert flutes.remove_suffix("some string", "bytestring") == "some string"
+    assert flutes.remove_suffix("some string", "bytestring", fully_match=False) == "some "
+    assert flutes.remove_suffix("some string", "unicode", fully_match=False) == "some string"
+    assert flutes.remove_suffix("some string", "more than some string", fully_match=False) == ""
 
 
 def test_cache() -> None:
