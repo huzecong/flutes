@@ -10,18 +10,20 @@ import traceback
 import types
 from collections import defaultdict
 from multiprocessing.pool import Pool
+from multiprocessing.reduction import AbstractReducer
 from queue import Empty
 from types import FrameType
 from typing import (Any, Callable, Dict, Generic, IO, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Set,
-                    Tuple, Type, TypeVar, Union, cast, no_type_check, overload)
+                    TYPE_CHECKING, Tuple, Type, TypeVar, Union, cast, no_type_check, overload)
 
-from multiprocessing.reduction import AbstractReducer
-from tqdm import tqdm
 from typing_extensions import Literal
 
 from .exception import log_exception
 from .log import get_worker_id
 from .types import PathType
+
+if TYPE_CHECKING:
+    from tqdm import tqdm
 
 __all__ = [
     "safe_pool",
@@ -875,7 +877,7 @@ class ProgressBarManager:
             ...
 
         @overload
-        def new(self, iterable: Literal[None] = None, update_frequency: Union[int, float] = 1, **kwargs) -> tqdm:
+        def new(self, iterable: Literal[None] = None, update_frequency: Union[int, float] = 1, **kwargs) -> 'tqdm':
             ...
 
         def new(self, iterable=None, update_frequency=1, **kwargs):
@@ -1004,7 +1006,7 @@ class ProgressBarManager:
 
         self.manager = mp.Manager()
         self.queue: 'mp.Queue[Event]' = self.manager.Queue(-1)  # type: ignore[assignment]
-        self.progress_bars: Dict[Optional[int], tqdm] = {}
+        self.progress_bars: Dict[Optional[int], 'tqdm'] = {}
         self.worker_id_map: Dict[Optional[int], int] = defaultdict(lambda: len(self.worker_id_map))
         self.bar_kwargs = kwargs.copy()
         self.thread = threading.Thread(target=self._run)

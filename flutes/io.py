@@ -1,13 +1,16 @@
 import contextlib
+import functools
 import io
 import os
 import sys
-from typing import Any, AnyStr, Callable, Dict, IO, Optional, overload
+from typing import Any, AnyStr, BinaryIO, IO, Optional, TYPE_CHECKING, overload
 
-from tqdm import tqdm
 from typing_extensions import Literal
 
-from .types import PathType
+from .types import BarFn, PathType
+
+if TYPE_CHECKING:
+    from tqdm import tqdm
 
 __all__ = [
     "shut_up",
@@ -46,13 +49,12 @@ def shut_up(stderr: bool = True, stdout: bool = False):
         os.close(null_fd)
 
 
-class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
-    def __init__(self, raw: io.RawIOBase, buffer_size: int = io.DEFAULT_BUFFER_SIZE, *,
-                 bar_fn: Callable[..., tqdm], bar_kwargs: Dict[str, Any]):
+class _ProgressBufferedReader(io.BufferedReader, BinaryIO):
+    def __init__(self, raw: io.RawIOBase, buffer_size: int = io.DEFAULT_BUFFER_SIZE, *, bar_fn: BarFn):
         super().__init__(raw, buffer_size)
         file_size = os.fstat(raw.fileno()).st_size
         self._read_bytes = 0
-        self.progress_bar = bar_fn(total=file_size, **bar_kwargs)
+        self.progress_bar = bar_fn(total=file_size)
 
     def __enter__(self):
         self.progress_bar.__enter__()
@@ -93,7 +95,7 @@ class _ProgressBufferedReader(io.BufferedReader, IO[bytes]):
 
 class ProgressReader(IO[AnyStr]):
     # stub for `progress_open`
-    progress_bar: tqdm
+    progress_bar: 'tqdm'
 
 
 @overload
@@ -112,7 +114,7 @@ def progress_open(path: PathType, mode: str, *, encoding: str = ...,
 
 
 def progress_open(path, mode="r", *, encoding='utf-8', verbose=True, buffer_size=io.DEFAULT_BUFFER_SIZE,
-                  bar_fn: Optional[Callable[..., tqdm]] = None, **kwargs):
+                  bar_fn: Optional[BarFn] = None, **kwargs):
     r"""A replacement for :py:func:`open` that shows the progress of reading the file:
 
     .. code:: python
@@ -147,8 +149,12 @@ def progress_open(path, mode="r", *, encoding='utf-8', verbose=True, buffer_size
         raise ValueError(f"Unsupported mode '{mode}'. Only read modes ('r', 'rb') are supported")
 
     kwargs.setdefault("bar_format", "{l_bar}{bar}| [{elapsed}<{remaining}{postfix}]")
-    buffer = f = _ProgressBufferedReader(io.FileIO(str(path), mode="r"), buffer_size,
-                                         bar_fn=bar_fn or tqdm, bar_kwargs=kwargs)
+    if bar_fn is None:
+        from tqdm import tqdm
+        bar_fn = tqdm
+    if len(kwargs) > 0:
+        bar_fn = functools.partial(bar_fn, **kwargs)
+    buffer = f = _ProgressBufferedReader(io.FileIO(str(path), mode="r"), buffer_size, bar_fn=bar_fn)
     if mode == "r":
         f = io.TextIOWrapper(f, encoding=encoding)  # type: ignore[assignment]
         f.progress_bar = buffer.progress_bar
