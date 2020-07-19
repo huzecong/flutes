@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-def download(url: str, save_dir: Optional[PathType], filename: Optional[str] = None, extract: bool = False,
+def download(url: str, save_dir: Optional[PathType] = None, filename: Optional[str] = None, extract: bool = False,
              progress: bool = False, bar_fn: Optional[BarFn] = None, **kwargs) -> str:
     r"""Download a file from the given URL. If the given file already exists in the save directory, download is skipped.
     Supported URL types include:

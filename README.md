@@ -1,7 +1,7 @@
 # Flutes
 
 [![Build Status](https://github.com/huzecong/flutes/workflows/Build/badge.svg)](https://github.com/huzecong/flutes/actions?query=workflow%3ABuild+branch%3Amaster)
-[![CodeCov](https://codecov.io/gh/huzecong/flutes/branch/master/graph/badge.svg?token=ELHfYJ2Ydq)](https://codecov.io/gh/flutes/argtyped)
+[![CodeCov](https://codecov.io/gh/huzecong/flutes/branch/master/graph/badge.svg?token=ELHfYJ2Ydq)](https://codecov.io/gh/huzecong/flutes)
 [![Documentation Status](https://readthedocs.org/projects/flutes/badge/?version=latest)](https://flutes.readthedocs.io/en/latest/?badge=latest)
 [![PyPI](https://img.shields.io/pypi/v/flutes.svg)](https://pypi.org/project/flutes/)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/huzecong/flutes/blob/master/LICENSE)
