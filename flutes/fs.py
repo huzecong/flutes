@@ -34,7 +34,7 @@ else:
         return int(subprocess.check_output(['du', '-bs', str(path)]).split()[0].decode('utf-8'))
 
 
-def readable_size(size: float) -> str:
+def readable_size(size: float, n_digits: int = 2) -> str:
     r"""Represent file size in human-readable format.
 
     .. code:: python
@@ -43,13 +43,15 @@ def readable_size(size: float) -> str:
         "1.00M"
 
     :param size: File size in bytes.
+    :param n_digits: Number of digits to display. Defaults to 2.
+    :returns: A string representing the human-readable file size.
     """
     units = ["", "K", "M", "G", "T", "P"]
     for unit in units[:-1]:
         if size < 1024:
-            return f"{size:.2f}{unit}"
+            return f"{size:.{n_digits}f}{unit}"
         size /= 1024
-    return f"{size:.2f}{units[-1]}"
+    return f"{size:.{n_digits}f}{units[-1]}"
 
 
 def get_file_lines(path: PathType) -> int:

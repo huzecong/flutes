@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the `level` argument is also refined to using literal types to prevent incorrect arguments.
 - `remove_prefix` now takes a `fully_match` argument that defaults to `True`. When `fully_match` is `True`, the prefix
   is removed only if it entirely matches a prefix of the string. This also changes the default behavior of the function.
+- `readable_size` now takes a `n_digits` argument that controls the floating-point precision of the file size.
 
 
 ## [0.3.0] - 2020-06-15

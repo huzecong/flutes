@@ -17,7 +17,7 @@ def test_copy_tree() -> None:
 
 
 def test_readable_size() -> None:
-    assert flutes.readable_size(500.12345) == "500.12"
+    assert flutes.readable_size(500.12346, n_digits=4) == "500.1235"
     assert flutes.readable_size(2048) == "2.00K"
     assert flutes.readable_size(34.567 * 1024 ** 5) == "34.57P"
 
