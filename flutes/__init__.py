@@ -7,6 +7,7 @@ from .iterator import *
 from .log import *
 from .math import *
 from .multiproc import *
+from .network import *
 from .run import *
 from .structure import *
 from .timing import *
