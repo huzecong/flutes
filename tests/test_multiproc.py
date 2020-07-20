@@ -93,7 +93,7 @@ def test_stateful_pool() -> None:
 
             # See, if you had a type checker, you wouldn't be making these mistakes.
             with pytest.raises(ValueError, match="Bound methods of the pool state class"):
-                _ = sum(pool.imap_unordered(PoolState({}).convert, seq, chunksize=1000))  # type: ignore[arg-type]
+                _ = sum(pool.imap_unordered(PoolState({}).convert, seq, chunksize=1000))
             with pytest.raises(ValueError, match="Only unbound methods of the pool state class"):
                 _ = sum(pool.imap_unordered(PoolState2.generate, seq, chunksize=1000))  # type: ignore[arg-type]
         assert result == target
