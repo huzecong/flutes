@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `remove_prefix` now takes a `fully_match` argument that defaults to `True`. When `fully_match` is `True`, the prefix
   is removed only if it entirely matches a prefix of the string. This also changes the default behavior of the function.
 - `readable_size` now takes a `n_digits` argument that controls the floating-point precision of the file size.
+- `safe_pool` now supports `closing` context managers. The closing handling is more elegant with the help of
+  `contextlib.ExitStack`. The resolution order is also changed: if a callable has a `close` method, the `close` method
+  instead of the callable itself with be called. 
 
 
 ## [0.3.0] - 2020-06-15

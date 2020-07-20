@@ -21,17 +21,33 @@ def mul(x: int, y: int, coef: int = 1, *, coef2: int = 1) -> int:
     return x * y * coef * coef2
 
 
+class ContextManagerMock:
+    def __init__(self):
+        self.state = 0
+
+    def __enter__(self):
+        self.state = 1
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.state = 2
+        return True
+
+
 def test_safe_pool() -> None:
     seq = list(range(10000))
     target = list(map(sqr, seq))  # sequential
     with mp.Pool(1) as pool:
         pool_type = type(pool)
 
-    file_obj = MagicMock()
+    def file_obj():
+        nonlocal call_count
+        call_count += 1
+
+    call_count = 0
     with flutes.safe_pool(0, closing=[file_obj]) as pool:
         check_iterator(pool.imap(sqr, seq), target)
     assert not isinstance(pool, pool_type)
-    file_obj.assert_called_once()
+    assert call_count == 1
 
     file_obj = NonCallableMagicMock()
     file_obj.mock_add_spec(["close"])
@@ -45,6 +61,11 @@ def test_safe_pool() -> None:
     with pytest.raises(KeyboardInterrupt):
         with flutes.safe_pool(2, closing=[file_obj], suppress_exceptions=True) as pool:
             raise KeyboardInterrupt
+
+    manager = ContextManagerMock()
+    with flutes.safe_pool(2, closing=[manager]) as pool:
+        raise ValueError
+    assert manager.state == 2
 
 
 class PoolState(flutes.PoolState):

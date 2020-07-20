@@ -673,8 +673,10 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None,
 
     :param closing: An optional list of objects to close at exit, routines to run at exit. For each element ``obj``:
 
+        - If it is a context manager (object with an ``__exit__`` method), the ``__exit__`` method is called with
+          appropriate arguments.
+        - If it has a ``close()`` method, ``obj.close()`` is invoked.
         - If it is a callable, ``obj`` is called with no arguments.
-        - If it has an ``close()`` method, ``obj.close()`` is invoked.
         - Otherwise, an exception is raised before the pool is constructed.
 
     :param suppress_exceptions: If ``True``, exceptions raised within the lifetime of the pool are suppressed. Defaults
@@ -687,60 +689,57 @@ def safe_pool(processes, *args, state_class=None, init_args=(), closing=None,
 
     if closing is not None and not isinstance(closing, list):
         raise ValueError("`closing` should either be `None` or a list")
-    closing_fns = []
-    for obj in (closing or []):
-        if callable(obj):
-            closing_fns.append(obj)
-        elif hasattr(obj, "close") and callable(getattr(obj, "close")):
-            closing_fns.append(obj.close)
+
+    with contextlib.ExitStack() as exit_stack:
+        for obj in (closing or []):
+            if hasattr(obj, "__exit__") and callable(getattr(obj, "__exit__")):
+                exit_stack.push(obj.__exit__)
+            elif hasattr(obj, "close") and callable(getattr(obj, "close")):
+                exit_stack.enter_context(contextlib.closing(obj))
+            elif callable(obj):
+                exit_stack.callback(obj)
+            else:
+                raise ValueError("Invalid object in `closing` list. "
+                                 "The object must either be a callable or has a `close` method")
+
+        if processes == 0:
+            pool_class = DummyPool
         else:
-            raise ValueError("Invalid object in `closing` list. "
-                             "The object must either be a callable or has a `close` method")
+            pool_class = PoolWrapper
 
-    def close_fn():
-        for fn in closing_fns:
-            fn()
+        args = (processes,) + args
+        if state_class is not None:
+            pool = StatefulPool(pool_class, state_class, init_args, args, kwargs)
+        else:
+            pool = pool_class(*args, **kwargs)
 
-    if processes == 0:
-        pool_class = DummyPool
-    else:
-        pool_class = PoolWrapper
+        if processes == 0:
+            # Don't swallow exceptions in the single-process case.
+            yield pool
+            return
 
-    args = (processes,) + args
-    if state_class is not None:
-        pool = StatefulPool(pool_class, state_class, init_args, args, kwargs)
-    else:
-        pool = pool_class(*args, **kwargs)
-
-    if processes == 0:
-        # Don't swallow exceptions in the single-process case.
-        yield pool
-        close_fn()
-        return
-
-    try:
-        yield pool
-    except KeyboardInterrupt as e:
-        from .log import log  # prevent circular import
-        log("Gracefully shutting down...", "warning", force_console=True)
-        log("Press Ctrl-C again to force terminate...", force_console=True, timestamp=False)
         try:
-            pool.close()
-            pool.join()
-        except KeyboardInterrupt:
-            pass
-        raise e  # keyboard interrupts are always reraised
-    except Exception as e:
-        if suppress_exceptions:
+            yield pool
+        except KeyboardInterrupt as e:
             from .log import log  # prevent circular import
-            log(traceback.format_exc(), force_console=True, timestamp=False)
-        else:
-            raise e
-    finally:
-        close_fn()
-        # In Python 3.8, the interpreter hangs when the pool is not properly closed.
-        pool.close()
-        pool.terminate()
+            log("Gracefully shutting down...", "warning", force_console=True)
+            log("Press Ctrl-C again to force terminate...", force_console=True, timestamp=False)
+            try:
+                pool.close()
+                pool.join()
+            except KeyboardInterrupt:
+                pass
+            raise e  # keyboard interrupts are always reraised
+        except Exception as e:
+            if suppress_exceptions:
+                from .log import log  # prevent circular import
+                log(traceback.format_exc(), force_console=True, timestamp=False)
+            else:
+                raise e
+        finally:
+            # In Python 3.8, the interpreter hangs when the pool is not properly closed.
+            pool.close()
+            pool.terminate()
 
 
 class MultiprocessingFileWriter(IO[Any]):
