@@ -46,3 +46,13 @@ def test_exception_wrapper() -> None:
             yield x
 
     list(foo_gen(range(10)))
+
+    def gen():
+        yield from range(10)
+
+    @flutes.exception_wrapper()
+    def identity(x):
+        return x
+
+    assert list(identity(gen())) == list(range(10))
+    assert identity(10) == 10

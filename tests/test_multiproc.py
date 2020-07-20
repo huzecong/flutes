@@ -77,6 +77,7 @@ class PoolState(flutes.PoolState):
     def _some_func(self, x: str) -> int:
         return self.large_dict[x]
 
+    @flutes.exception_wrapper()
     def convert(self, x: str) -> int:
         return self._some_func(x) + self.CLASS_VAR
 

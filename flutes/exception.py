@@ -124,29 +124,41 @@ def exception_wrapper(handler_fn=None):
                     raise ValueError(f"Argument '{name}' matches wrapped method argument, thus "
                                      f"cannot have default values")
 
+        def _handle_exception(e, args, kwargs):
+            if handler_fn is None:
+                log_exception(e)
+            else:
+                # Credit: https://stackoverflow.com/questions/59831981/
+                bound_args = inner_signature.bind(*args, **kwargs)
+                bound_args.apply_defaults()
+                handler_args = {name: bound_args.arguments[name] for name in handler_arg_names}
+                if handler_argspec.varkw is not None:
+                    var_kw = {name: value for name, value in bound_args.arguments.items()
+                              if name not in handler_arg_names}
+                    handler_args.update(var_kw)  # they would just match the kwargs
+                return handler_fn(e, **handler_args)
+
+        def _captured_generator(gen, args, kwargs):
+            try:
+                # Unroll the generator within this try-except block. Otherwise exceptions happening in the generator
+                # will not be caught by our wrapper.
+                yield from gen
+            except Exception as e:
+                _handle_exception(e, args, kwargs)
+
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             try:
                 result = func(*args, **kwargs)
                 if inspect.isgenerator(result):
-                    # Unroll the generator within this try-except block. Otherwise exceptions happening in the generator
-                    # will not be caught by our wrapper.
-                    yield from result
+                    # It is important to not call `yield` within this function. Doing so would make this function a
+                    # generator function, so the wrapped function returns a generator regardless of its actual return
+                    # value.
+                    return _captured_generator(result, args, kwargs)
                 else:
                     return result
             except Exception as e:
-                if handler_fn is None:
-                    log_exception(e)
-                else:
-                    # Credit: https://stackoverflow.com/questions/59831981/
-                    bound_args = inner_signature.bind(*args, **kwargs)
-                    bound_args.apply_defaults()
-                    handler_args = {name: bound_args.arguments[name] for name in handler_arg_names}
-                    if handler_argspec.varkw is not None:
-                        var_kw = {name: value for name, value in bound_args.arguments.items()
-                                  if name not in handler_arg_names}
-                        handler_args.update(var_kw)  # they would just match the kwargs
-                    return handler_fn(e, **handler_args)
+                _handle_exception(e, args, kwargs)
 
         return wrapped
 
